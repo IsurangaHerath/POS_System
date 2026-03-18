@@ -27,10 +27,10 @@ const REPORT_ENDPOINTS = {
 const ReportsPage = () => {
     // Context hooks for notifications and authorization
     const { showError } = useToast();
-    const { hasMinimumRole, currentUser } = useAuth();
+    const { hasMinRole, currentUser } = useAuth();
 
     // Authorization check - only managers and admins can view reports
-    const canAccessReports = hasMinimumRole('manager');
+    const canAccessReports = hasMinRole('manager');
 
     // State management
     const [selectedReportType, setSelectedReportType] = useState(REPORT_TYPES.DAILY);
