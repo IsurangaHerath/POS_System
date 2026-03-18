@@ -1,16 +1,37 @@
+/**
+ * Dashboard Page Component
+ * 
+ * Main dashboard displaying key metrics and widgets including:
+ * - Sales statistics (today and monthly)
+ * - Product counts and low stock alerts
+ * - Sales chart visualization
+ * - Top products list
+ * - Recent sales activity
+ */
+
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
+// Dashboard component imports
 import StatCard from '../../components/Dashboard/StatCard';
 import SalesChart from '../../components/Dashboard/SalesChart';
 import TopProducts from '../../components/Dashboard/TopProducts';
 import LowStockAlert from '../../components/Dashboard/LowStockAlert';
 import RecentSales from '../../components/Dashboard/RecentSales';
 
+/**
+ * Dashboard Page Component
+ * Displays store metrics and real-time data
+ */
 const DashboardPage = () => {
-    const { user } = useAuth();
+    // Authentication context
+    const { user: currentUser } = useAuth();
+
+    // Loading state
     const [isLoading, setIsLoading] = useState(true);
+
+    // Dashboard data state with default values
     const [dashboardData, setDashboardData] = useState({
         stats: {
             todaySales: 0,
@@ -26,25 +47,52 @@ const DashboardPage = () => {
         recentSales: []
     });
 
+    /**
+     * Fetches all dashboard data from the API
+     * Uses Promise.all for parallel requests with error handling
+     */
     useEffect(() => {
         const fetchDashboardData = async () => {
             try {
                 setIsLoading(true);
 
-                const [statsRes, chartRes, topProductsRes, lowStockRes, recentSalesRes] = await Promise.all([
-                    api.get('/dashboard/stats').catch(() => ({ data: { data: dashboardData.stats } })),
-                    api.get('/dashboard/sales-chart').catch(() => ({ data: { data: [] } })),
-                    api.get('/dashboard/top-products').catch(() => ({ data: { data: [] } })),
-                    api.get('/dashboard/low-stock').catch(() => ({ data: { data: [] } })),
-                    api.get('/dashboard/recent-sales').catch(() => ({ data: { data: [] } }))
+                // Fetch all dashboard components in parallel
+                const [
+                    statsResponse,
+                    chartResponse,
+                    topProductsResponse,
+                    lowStockResponse,
+                    recentSalesResponse
+                ] = await Promise.all([
+                    // Statistics endpoint
+                    api.get('/dashboard/stats').catch(() => ({ 
+                        data: { data: dashboardData.stats } 
+                    })),
+                    // Sales chart endpoint
+                    api.get('/dashboard/sales-chart').catch(() => ({ 
+                        data: { data: [] } 
+                    })),
+                    // Top products endpoint
+                    api.get('/dashboard/top-products').catch(() => ({ 
+                        data: { data: [] } 
+                    })),
+                    // Low stock alert endpoint
+                    api.get('/dashboard/low-stock').catch(() => ({ 
+                        data: { data: [] } 
+                    })),
+                    // Recent sales endpoint
+                    api.get('/dashboard/recent-sales').catch(() => ({ 
+                        data: { data: [] } 
+                    }))
                 ]);
 
+                // Update state with fetched data
                 setDashboardData({
-                    stats: statsRes.data.data || dashboardData.stats,
-                    salesChart: chartRes.data.data || [],
-                    topProducts: topProductsRes.data.data || [],
-                    lowStockProducts: lowStockRes.data.data || [],
-                    recentSales: recentSalesRes.data.data || []
+                    stats: statsResponse.data.data || dashboardData.stats,
+                    salesChart: chartResponse.data.data || [],
+                    topProducts: topProductsResponse.data.data || [],
+                    lowStockProducts: lowStockResponse.data.data || [],
+                    recentSales: recentSalesResponse.data.data || []
                 });
             } catch (error) {
                 console.error('Failed to fetch dashboard data:', error);
@@ -56,6 +104,11 @@ const DashboardPage = () => {
         fetchDashboardData();
     }, []);
 
+    /**
+     * Formats a numeric amount as USD currency
+     * @param {number} amount - The amount to format
+     * @returns {string} Formatted currency string
+     */
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
@@ -63,13 +116,18 @@ const DashboardPage = () => {
         }).format(amount || 0);
     };
 
-    const getGreeting = () => {
-        const hour = new Date().getHours();
-        if (hour < 12) return 'Good morning';
-        if (hour < 18) return 'Good afternoon';
+    /**
+     * Returns a greeting based on the current hour
+     * @returns {string} Time-appropriate greeting
+     */
+    const getTimeBasedGreeting = () => {
+        const currentHour = new Date().getHours();
+        if (currentHour < 12) return 'Good morning';
+        if (currentHour < 18) return 'Good afternoon';
         return 'Good evening';
     };
 
+    // Show loading spinner while fetching data
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-96">
@@ -80,10 +138,11 @@ const DashboardPage = () => {
 
     return (
         <div className="space-y-6">
+            {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                        {getGreeting()}, {user?.full_name || user?.username}!
+                        {getTimeBasedGreeting()}, {currentUser?.full_name || currentUser?.username}!
                     </h1>
                     <p className="text-gray-500 dark:text-gray-400 mt-1">
                         Here's what's happening with your store today.
@@ -99,7 +158,9 @@ const DashboardPage = () => {
                 </div>
             </div>
 
+            {/* Statistics Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Today's Sales Card */}
                 <StatCard
                     title="Today's Sales"
                     value={formatCurrency(dashboardData.stats.todaySales)}
@@ -111,6 +172,8 @@ const DashboardPage = () => {
                     }
                     color="blue"
                 />
+                
+                {/* Monthly Revenue Card */}
                 <StatCard
                     title="Monthly Revenue"
                     value={formatCurrency(dashboardData.stats.monthlyRevenue)}
@@ -122,6 +185,8 @@ const DashboardPage = () => {
                     }
                     color="green"
                 />
+                
+                {/* Total Products Card */}
                 <StatCard
                     title="Total Products"
                     value={dashboardData.stats.totalProducts}
@@ -133,6 +198,8 @@ const DashboardPage = () => {
                     }
                     color="purple"
                 />
+                
+                {/* Low Stock Alert Card */}
                 <StatCard
                     title="Low Stock Alert"
                     value={dashboardData.stats.lowStockCount}
@@ -147,18 +214,26 @@ const DashboardPage = () => {
                 />
             </div>
 
+            {/* Charts and Top Products Row */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
                     <SalesChart data={dashboardData.salesChart} />
                 </div>
                 <div>
-                    <TopProducts products={dashboardData.topProducts} formatCurrency={formatCurrency} />
+                    <TopProducts 
+                        products={dashboardData.topProducts} 
+                        formatCurrency={formatCurrency} 
+                    />
                 </div>
             </div>
 
+            {/* Alerts and Recent Activity Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <LowStockAlert products={dashboardData.lowStockProducts} />
-                <RecentSales sales={dashboardData.recentSales} formatCurrency={formatCurrency} />
+                <RecentSales 
+                    sales={dashboardData.recentSales} 
+                    formatCurrency={formatCurrency} 
+                />
             </div>
         </div>
     );

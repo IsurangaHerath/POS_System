@@ -1,15 +1,26 @@
 /**
- * Database Configuration
+ * Database Configuration Module
  * 
- * MySQL database connection pool configuration using mysql2
- * with promise-based interface for async/await support.
+ * MySQL database connection pool configuration using mysql2/promise.
+ * Provides a comprehensive database abstraction layer with:
+ * - Connection pooling
+ * - Query execution helpers
+ * - Transaction support
+ * - Query performance logging
  */
 
 const mysql = require('mysql2/promise');
 const logger = require('../utils/logger');
 
-// Database configuration from environment variables
-const dbConfig = {
+// ============================================
+// DATABASE CONFIGURATION
+// ============================================
+
+/**
+ * Database connection configuration
+ * Values are loaded from environment variables with sensible defaults
+ */
+const databaseConfig = {
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 3306,
     user: process.env.DB_USER || 'root',
@@ -24,12 +35,17 @@ const dbConfig = {
     charset: 'utf8mb4'
 };
 
-// Create connection pool
-const pool = mysql.createPool(dbConfig);
+// Create the connection pool
+const pool = mysql.createPool(databaseConfig);
+
+// ============================================
+// CONNECTION MANAGEMENT
+// ============================================
 
 /**
- * Test database connection
- * @returns {Promise<boolean>} Connection status
+ * Tests the database connection
+ * @returns {Promise<boolean>} True if connection successful
+ * @throws {Error} If connection fails
  */
 async function testConnection() {
     try {
@@ -44,7 +60,7 @@ async function testConnection() {
 }
 
 /**
- * Close database connection pool
+ * Closes the database connection pool
  * @returns {Promise<void>}
  */
 async function closeConnection() {
@@ -57,30 +73,35 @@ async function closeConnection() {
     }
 }
 
+// ============================================
+// QUERY EXECUTION
+// ============================================
+
 /**
- * Execute a query with parameters
- * @param {string} sql - SQL query
- * @param {Array} params - Query parameters
+ * Executes a raw SQL query with parameters
+ * @param {string} sqlQuery - SQL query string
+ * @param {Array} queryParams - Query parameter values
  * @returns {Promise<Array>} Query results
  */
-async function query(sql, params = []) {
-    const startTime = Date.now();
+async function executeQuery(sqlQuery, queryParams = []) {
+    const queryStartTime = Date.now();
+    
     try {
         // Use query() instead of execute() to properly handle LIMIT/OFFSET parameters
         // execute() uses prepared statements which have issues with integer params in LIMIT
-        const [results] = await pool.query(sql, params);
-        const duration = Date.now() - startTime;
+        const [results] = await pool.query(sqlQuery, queryParams);
+        const queryDuration = queryStartTime - Date.now();
 
         // Log slow queries (> 100ms)
-        if (duration > 100) {
-            logger.warn(`Slow query (${duration}ms): ${sql.substring(0, 100)}...`);
+        if (Math.abs(queryDuration) > 100) {
+            logger.warn(`Slow query (${Math.abs(queryDuration)}ms): ${sqlQuery.substring(0, 100)}...`);
         }
 
         return results;
     } catch (error) {
         logger.error('Query error:', {
-            sql: sql.substring(0, 200),
-            params: JSON.stringify(params).substring(0, 200),
+            sql: sqlQuery.substring(0, 200),
+            params: JSON.stringify(queryParams).substring(0, 200),
             error: error.message
         });
         throw error;
@@ -88,80 +109,88 @@ async function query(sql, params = []) {
 }
 
 /**
- * Get a single row
- * @param {string} sql - SQL query
- * @param {Array} params - Query parameters
- * @returns {Promise<Object|null>} Single row or null
+ * Retrieves a single row from the database
+ * @param {string} sqlQuery - SQL query string
+ * @param {Array} queryParams - Query parameter values
+ * @returns {Promise<Object|null>} First row or null if no results
  */
-async function getOne(sql, params = []) {
-    const results = await query(sql, params);
+async function getSingleRow(sqlQuery, queryParams = []) {
+    const results = await executeQuery(sqlQuery, queryParams);
     return results.length > 0 ? results[0] : null;
 }
 
 /**
- * Get multiple rows
- * @param {string} sql - SQL query
- * @param {Array} params - Query parameters
+ * Retrieves multiple rows from the database
+ * @param {string} sqlQuery - SQL query string
+ * @param {Array} queryParams - Query parameter values
  * @returns {Promise<Array>} Array of rows
  */
-async function getMany(sql, params = []) {
-    return query(sql, params);
+async function getMultipleRows(sqlQuery, queryParams = []) {
+    return executeQuery(sqlQuery, queryParams);
 }
 
-/**
- * Insert a row and return the insert ID
- * @param {string} table - Table name
- * @param {Object} data - Data to insert
- * @returns {Promise<number>} Insert ID
- */
-async function insert(table, data) {
-    const keys = Object.keys(data);
-    const values = Object.values(data);
-    const placeholders = keys.map(() => '?').join(', ');
-    const columns = keys.join(', ');
+// ============================================
+// CRUD OPERATIONS
+// ============================================
 
-    const sql = `INSERT INTO ${table} (${columns}) VALUES (${placeholders})`;
-    const result = await query(sql, values);
+/**
+ * Inserts a row into a table
+ * @param {string} tableName - Name of the table
+ * @param {Object} rowData - Data to insert as key-value pairs
+ * @returns {Promise<number>} Inserted row ID
+ */
+async function insertRow(tableName, rowData) {
+    const columnNames = Object.keys(rowData);
+    const columnValues = Object.values(rowData);
+    const valuePlaceholders = columnNames.map(() => '?').join(', ');
+    const columns = columnNames.join(', ');
+
+    const sqlQuery = `INSERT INTO ${tableName} (${columns}) VALUES (${valuePlaceholders})`;
+    const result = await executeQuery(sqlQuery, columnValues);
 
     return result.insertId;
 }
 
 /**
- * Update rows in a table
- * @param {string} table - Table name
- * @param {Object} data - Data to update
- * @param {string} where - WHERE clause
- * @param {Array} whereParams - WHERE parameters
+ * Updates rows in a table
+ * @param {string} tableName - Name of the table
+ * @param {Object} updateData - Data to update as key-value pairs
+ * @param {string} whereClause - WHERE clause (without WHERE keyword)
+ * @param {Array} whereParams - Parameters for WHERE clause
  * @returns {Promise<number>} Number of affected rows
  */
-async function update(table, data, where, whereParams = []) {
-    const keys = Object.keys(data);
-    const values = Object.values(data);
-    const setClause = keys.map(key => `${key} = ?`).join(', ');
+async function updateRows(tableName, updateData, whereClause, whereParams = []) {
+    const columnNames = Object.keys(updateData);
+    const columnValues = Object.values(updateData);
+    const setClause = columnNames.map(column => `${column} = ?`).join(', ');
 
-    const sql = `UPDATE ${table} SET ${setClause} WHERE ${where}`;
-    const result = await query(sql, [...values, ...whereParams]);
+    const sqlQuery = `UPDATE ${tableName} SET ${setClause} WHERE ${whereClause}`;
+    const result = await executeQuery(sqlQuery, [...columnValues, ...whereParams]);
 
     return result.affectedRows;
 }
 
 /**
- * Delete rows from a table
- * @param {string} table - Table name
- * @param {string} where - WHERE clause
- * @param {Array} whereParams - WHERE parameters
+ * Deletes rows from a table
+ * @param {string} tableName - Name of the table
+ * @param {string} whereClause - WHERE clause (without WHERE keyword)
+ * @param {Array} whereParams - Parameters for WHERE clause
  * @returns {Promise<number>} Number of affected rows
  */
-async function remove(table, where, whereParams = []) {
-    const sql = `DELETE FROM ${table} WHERE ${where}`;
-    const result = await query(sql, whereParams);
+async function deleteRows(tableName, whereClause, whereParams = []) {
+    const sqlQuery = `DELETE FROM ${tableName} WHERE ${whereClause}`;
+    const result = await executeQuery(sqlQuery, whereParams);
 
     return result.affectedRows;
 }
 
+// ============================================
+// TRANSACTION MANAGEMENT
+// ============================================
+
 /**
- * Begin a transaction
- * @returns {Promise<Object>} Connection object for transaction
+ * Begins a new database transaction
+ * @returns {Promise<Object>} Database connection with active transaction
  */
 async function beginTransaction() {
     const connection = await pool.getConnection();
@@ -170,8 +199,8 @@ async function beginTransaction() {
 }
 
 /**
- * Commit a transaction
- * @param {Object} connection - Connection object
+ * Commits a transaction
+ * @param {Object} connection - Database connection from beginTransaction
  */
 async function commitTransaction(connection) {
     await connection.commit();
@@ -179,8 +208,8 @@ async function commitTransaction(connection) {
 }
 
 /**
- * Rollback a transaction
- * @param {Object} connection - Connection object
+ * Rolls back a transaction
+ * @param {Object} connection - Database connection from beginTransaction
  */
 async function rollbackTransaction(connection) {
     await connection.rollback();
@@ -188,35 +217,40 @@ async function rollbackTransaction(connection) {
 }
 
 /**
- * Execute queries within a transaction
- * @param {Function} callback - Callback function receiving connection
- * @returns {Promise<any>} Callback result
+ * Executes a callback within a transaction
+ * Automatically commits on success or rolls back on error
+ * @param {Function} transactionCallback - Async function receiving the connection
+ * @returns {Promise<any>} Result from the callback
  */
-async function transaction(callback) {
-    const connection = await beginTransaction();
+async function runInTransaction(transactionCallback) {
+    const transactionConnection = await beginTransaction();
 
     try {
-        const result = await callback(connection);
-        await commitTransaction(connection);
-        return result;
-    } catch (error) {
-        await rollbackTransaction(connection);
-        throw error;
+        const transactionResult = await transactionCallback(transactionConnection);
+        await commitTransaction(transactionConnection);
+        return transactionResult;
+    } catch (transactionError) {
+        await rollbackTransaction(transactionConnection);
+        throw transactionError;
     }
 }
+
+// ============================================
+// EXPORTS
+// ============================================
 
 module.exports = {
     pool,
     testConnection,
     closeConnection,
-    query,
-    getOne,
-    getMany,
-    insert,
-    update,
-    remove,
+    query: executeQuery,
+    getOne: getSingleRow,
+    getMany: getMultipleRows,
+    insert: insertRow,
+    update: updateRows,
+    remove: deleteRows,
     beginTransaction,
     commitTransaction,
     rollbackTransaction,
-    transaction
+    transaction: runInTransaction
 };

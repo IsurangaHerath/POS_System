@@ -1,3 +1,11 @@
+/**
+ * Express Application Configuration
+ * 
+ * Main application setup including middleware, routes, and error handling.
+ * This is the entry point for the Express.js backend server.
+ */
+
+// Core framework and third-party middleware imports
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -5,10 +13,12 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const { validationResult } = require('express-validator');
 
+// Custom utilities and middleware
 const logger = require('./utils/logger');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const { validationError } = require('./utils/response');
 
+// Route imports
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const productRoutes = require('./routes/product.routes');
@@ -21,14 +31,20 @@ const reportRoutes = require('./routes/report.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const settingsRoutes = require('./routes/settings.routes');
 
+// Initialize Express application
 const app = express();
 
-// Security middleware
+// ============================================
+// SECURITY MIDDLEWARE
+// ============================================
+
+// Helmet - HTTP security headers
 app.use(helmet({
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false
 }));
 
+// CORS - Cross-Origin Resource Sharing
 app.use(cors({
     origin: process.env.CORS_ORIGIN || '*',
     credentials: true,
@@ -36,10 +52,10 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 300,
+// Rate limiting - Prevent abuse and DDoS
+const apiLimiter = rateLimit({
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes default
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 300, // 300 requests per window
     message: {
         success: false,
         error: {
@@ -49,9 +65,9 @@ const limiter = rateLimit({
     },
     standardHeaders: true,
     legacyHeaders: false,
-    handler: (req, res) => {
-        logger.warn(`Rate limit exceeded for IP: ${req.ip}`);
-        res.status(429).json({
+    handler: (request, response) => {
+        logger.warn(`Rate limit exceeded for IP: ${request.ip}`);
+        response.status(429).json({
             success: false,
             error: {
                 code: 'RATE_LIMIT_ERROR',
@@ -61,16 +77,28 @@ const limiter = rateLimit({
     }
 });
 
-app.use('/api/', limiter);
+app.use('/api/', apiLimiter);
 
-// Request parsing
+// ============================================
+// REQUEST PARSING MIDDLEWARE
+// ============================================
+
+// Parse JSON bodies with 10MB limit
 app.use(express.json({ limit: '10mb' }));
+
+// Parse URL-encoded bodies with extended parsing and 10MB limit
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Logging
+// ============================================
+// LOGGING MIDDLEWARE
+// ============================================
+
+// HTTP request logging based on environment
 if (process.env.NODE_ENV === 'development') {
+    // Development: concise colored output
     app.use(morgan('dev'));
 } else {
+    // Production: Apache/Nginx combined log format
     app.use(morgan('combined', {
         stream: {
             write: (message) => logger.info(message.trim())
@@ -78,32 +106,44 @@ if (process.env.NODE_ENV === 'development') {
     }));
 }
 
-// Request timing
-app.use((req, res, next) => {
-    const startTime = Date.now();
+// Request timing - Track response time for performance monitoring
+app.use((request, response, next) => {
+    const requestStartTime = Date.now();
 
-    res.on('finish', () => {
-        const duration = Date.now() - startTime;
-        logger.logRequest(req, res.statusCode, duration);
+    response.on('finish', () => {
+        const requestDuration = Date.now() - requestStartTime;
+        logger.logRequest(request, response.statusCode, requestDuration);
     });
 
     next();
 });
 
-// Validation middleware
-const validate = (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return validationError(res, errors.array());
+// ============================================
+// VALIDATION MIDDLEWARE
+// ============================================
+
+/**
+ * Validation middleware for express-validator
+ * Checks for validation errors in request and returns 422 if any found
+ */
+const validateRequest = (request, response, next) => {
+    const validationErrors = validationResult(request);
+    if (!validationErrors.isEmpty()) {
+        return validationError(response, validationErrors.array());
     }
     next();
 };
 
-app.set('validate', validate);
+// Make validation middleware available to routes
+app.set('validate', validateRequest);
 
-// Routes
-app.get('/api/health', (req, res) => {
-    res.json({
+// ============================================
+// API ENDPOINTS
+// ============================================
+
+// Health check endpoint
+app.get('/api/health', (request, response) => {
+    response.json({
         success: true,
         message: 'Server is running',
         timestamp: new Date().toISOString(),
@@ -111,8 +151,9 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-app.get('/api/docs', (req, res) => {
-    res.json({
+// API documentation endpoint
+app.get('/api/docs', (request, response) => {
+    response.json({
         success: true,
         message: 'POS System API',
         version: '1.0.0',
@@ -132,6 +173,10 @@ app.get('/api/docs', (req, res) => {
     });
 });
 
+// ============================================
+// ROUTE REGISTRATION
+// ============================================
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
@@ -144,8 +189,14 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/settings', settingsRoutes);
 
-// Error handling
+// ============================================
+// ERROR HANDLING
+// ============================================
+
+// 404 handler for undefined routes
 app.use(notFoundHandler);
+
+// Global error handler
 app.use(errorHandler);
 
 module.exports = app;

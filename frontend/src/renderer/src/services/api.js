@@ -1,43 +1,90 @@
+/**
+ * API Service Module
+ * 
+ * Centralized Axios HTTP client for making API requests.
+ * Handles authentication tokens, error handling, and response formatting.
+ * Supports both Electron and browser environments.
+ */
+
 import axios from 'axios';
 
-const getApiUrl = async () => {
+// ============================================
+// CONFIGURATION
+// ============================================
+
+// Default API timeout in milliseconds
+const API_TIMEOUT = 30000;
+
+// Default API URL for browser environment
+const DEFAULT_API_URL = 'http://localhost:5000/api';
+
+/**
+ * Retrieves the API URL based on the runtime environment.
+ * Checks for Electron first, then falls back to environment variables.
+ * @returns {Promise<string>} The API base URL
+ */
+const fetchApiUrl = async () => {
+    // Check if running in Electron environment
     if (window.electron?.getApiUrl) {
-        const url = await window.electron.getApiUrl();
-        console.log('[API] Getting URL from Electron:', url);
-        return url;
+        const apiUrl = await window.electron.getApiUrl();
+        console.log('[API] Getting URL from Electron:', apiUrl);
+        return apiUrl;
     }
-    const url = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    console.log('[API] Using VITE_API_URL or default:', url);
-    return url;
+    
+    // Use Vite environment variable or default
+    const apiUrl = import.meta.env.VITE_API_URL || DEFAULT_API_URL;
+    console.log('[API] Using VITE_API_URL or default:', apiUrl);
+    return apiUrl;
 };
 
+// ============================================
+// AXIOS INSTANCE CREATION
+// ============================================
+
+/**
+ * Creates a configured Axios instance with default settings
+ */
 const api = axios.create({
-    timeout: 30000,
+    timeout: API_TIMEOUT,
     headers: {
         'Content-Type': 'application/json'
     }
 });
 
-let apiUrl = 'http://localhost:5000/api';
+// Store for the current API URL
+let currentApiUrl = DEFAULT_API_URL;
 
+// ============================================
+// REQUEST INTERCEPTOR
+// ============================================
+
+/**
+ * Interceptor that runs before each request.
+ * Sets the base URL and attaches authentication token.
+ */
 api.interceptors.request.use(
     async (config) => {
-        // Ensure apiUrl is set before each request
-        if (!apiUrl || apiUrl === 'http://localhost:5000/api') {
-            apiUrl = await getApiUrl();
+        // Update API URL if needed
+        if (!currentApiUrl || currentApiUrl === DEFAULT_API_URL) {
+            currentApiUrl = await fetchApiUrl();
         }
-        config.baseURL = apiUrl;
+        config.baseURL = currentApiUrl;
+        
         console.log('[API Request]', config.method?.toUpperCase(), config.baseURL + config.url);
 
-        let token;
+        // Retrieve authentication token
+        let authToken;
         if (window.electron?.store) {
-            token = await window.electron.store.get('auth_token');
+            // Electron environment - use secure storage
+            authToken = await window.electron.store.get('auth_token');
         } else {
-            token = localStorage.getItem('auth_token');
+            // Browser environment - use localStorage
+            authToken = localStorage.getItem('auth_token');
         }
 
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+        // Attach token to request if available
+        if (authToken) {
+            config.headers.Authorization = `Bearer ${authToken}`;
         }
 
         return config;
@@ -47,6 +94,14 @@ api.interceptors.request.use(
     }
 );
 
+// ============================================
+// RESPONSE INTERCEPTOR
+// ============================================
+
+/**
+ * Interceptor that handles API responses and errors.
+ * Performs automatic token cleanup on 401 errors and redirects to login.
+ */
 api.interceptors.response.use(
     (response) => {
         console.log('[API Response]', response.config.url, response.status);
@@ -54,11 +109,19 @@ api.interceptors.response.use(
     },
     async (error) => {
         const originalRequest = error.config;
-        console.error('[API Error]', originalRequest.url, error.response?.status, error.message);
+        
+        console.error(
+            '[API Error]', 
+            originalRequest.url, 
+            error.response?.status, 
+            error.message
+        );
 
+        // Handle 401 Unauthorized - clear auth and redirect to login
         if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
 
+            // Clear authentication data
             if (window.electron?.store) {
                 await window.electron.store.delete('auth_token');
                 await window.electron.store.delete('auth_user');
@@ -67,10 +130,12 @@ api.interceptors.response.use(
                 localStorage.removeItem('auth_user');
             }
 
+            // Redirect to login page
             window.location.href = '/login';
             return Promise.reject(error);
         }
 
+        // Handle network errors
         if (!error.response) {
             error.response = {
                 data: {
@@ -83,35 +148,80 @@ api.interceptors.response.use(
     }
 );
 
+// ============================================
+// INITIALIZATION
+// ============================================
+
+// Initialize API URL on module load
 (async () => {
-    apiUrl = await getApiUrl();
+    currentApiUrl = await fetchApiUrl();
 })();
 
+// ============================================
+// HTTP METHODS
+// ============================================
+
+/**
+ * Performs a GET request
+ * @param {string} url - Request endpoint
+ * @param {Object} params - Query parameters
+ * @returns {Promise<Object>} Response data
+ */
 export const get = async (url, params = {}) => {
     const response = await api.get(url, { params });
     return response.data;
 };
 
+/**
+ * Performs a POST request
+ * @param {string} url - Request endpoint
+ * @param {Object} data - Request body
+ * @returns {Promise<Object>} Response data
+ */
 export const post = async (url, data = {}) => {
     const response = await api.post(url, data);
     return response.data;
 };
 
+/**
+ * Performs a PUT request
+ * @param {string} url - Request endpoint
+ * @param {Object} data - Request body
+ * @returns {Promise<Object>} Response data
+ */
 export const put = async (url, data = {}) => {
     const response = await api.put(url, data);
     return response.data;
 };
 
+/**
+ * Performs a PATCH request
+ * @param {string} url - Request endpoint
+ * @param {Object} data - Request body
+ * @returns {Promise<Object>} Response data
+ */
 export const patch = async (url, data = {}) => {
     const response = await api.patch(url, data);
     return response.data;
 };
 
+/**
+ * Performs a DELETE request
+ * @param {string} url - Request endpoint
+ * @returns {Promise<Object>} Response data
+ */
 export const del = async (url) => {
     const response = await api.delete(url);
     return response.data;
 };
 
+/**
+ * Uploads a file to the specified endpoint
+ * @param {string} url - Upload endpoint
+ * @param {File} file - File to upload
+ * @param {Function} onProgress - Progress callback
+ * @returns {Promise<Object>} Response data
+ */
 export const upload = async (url, file, onProgress) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -133,6 +243,12 @@ export const upload = async (url, file, onProgress) => {
     return response.data;
 };
 
+/**
+ * Downloads a file from the specified endpoint
+ * @param {string} url - Download endpoint
+ * @param {string} filename - Name for the downloaded file
+ * @returns {Promise<void>}
+ */
 export const download = async (url, filename) => {
     const response = await api.get(url, {
         responseType: 'blob'
@@ -149,4 +265,5 @@ export const download = async (url, filename) => {
     window.URL.revokeObjectURL(downloadUrl);
 };
 
+// Export the configured axios instance
 export default api;

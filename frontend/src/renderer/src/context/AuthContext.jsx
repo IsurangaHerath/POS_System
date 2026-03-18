@@ -1,8 +1,21 @@
+/**
+ * Authentication Context
+ * 
+ * React Context for managing authentication state throughout the application.
+ * Provides login, logout, registration, and authorization utilities.
+ */
+
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
+// Create the authentication context
 const AuthContext = createContext(null);
 
+/**
+ * Custom hook to access authentication context
+ * @throws {Error} If used outside of AuthProvider
+ * @returns {Object} Authentication context value
+ */
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {
@@ -11,60 +24,62 @@ export const useAuth = () => {
     return context;
 };
 
+// ============================================
+// ROLE DEFINITIONS
+// ============================================
+
+/**
+ * Available user roles in the system
+ * @constant {Object}
+ */
 export const ROLES = {
     ADMIN: 'admin',
     MANAGER: 'manager',
     CASHIER: 'cashier'
 };
 
+/**
+ * Role hierarchy for permission comparisons (higher = more access)
+ * @constant {Object}
+ */
 const ROLE_HIERARCHY = {
     [ROLES.ADMIN]: 3,
     [ROLES.MANAGER]: 2,
     [ROLES.CASHIER]: 1
 };
 
+/**
+ * Authentication Provider Component
+ * Wraps the application to provide authentication state and methods
+ */
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [token, setToken] = useState(null);
+    // State management
+    const [currentUser, setCurrentUser] = useState(null);
+    const [authToken, setAuthToken] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+    /**
+     * Initializes authentication state from storage on component mount
+     */
     useEffect(() => {
-        const initAuth = async () => {
+        const initializeAuth = async () => {
             try {
                 if (window.electron?.store) {
+                    // Electron environment - use secure storage
                     const storedToken = await window.electron.store.get('auth_token');
                     const storedUser = await window.electron.store.get('auth_user');
 
                     if (storedToken && storedUser) {
-                        setToken(storedToken);
-                        setUser(storedUser);
-                        setIsAuthenticated(true);
-
-                        try {
-                            const response = await api.get('/auth/me');
-                            setUser(response.data.data.user);
-                            await window.electron.store.set('auth_user', response.data.data.user);
-                        } catch (error) {
-                            await logout();
-                        }
+                        await validateStoredAuth(storedToken, storedUser);
                     }
                 } else {
+                    // Browser environment - use localStorage
                     const storedToken = localStorage.getItem('auth_token');
                     const storedUser = localStorage.getItem('auth_user');
 
                     if (storedToken && storedUser) {
-                        setToken(storedToken);
-                        setUser(JSON.parse(storedUser));
-                        setIsAuthenticated(true);
-
-                        try {
-                            const response = await api.get('/auth/me');
-                            setUser(response.data.data.user);
-                            localStorage.setItem('auth_user', JSON.stringify(response.data.data.user));
-                        } catch (error) {
-                            await logout();
-                        }
+                        await validateStoredAuth(storedToken, JSON.parse(storedUser));
                     }
                 }
             } catch (error) {
@@ -74,64 +89,95 @@ export const AuthProvider = ({ children }) => {
             }
         };
 
-        initAuth();
+        initializeAuth();
     }, []);
 
+    /**
+     * Validates stored authentication by fetching current user from API
+     * @param {string} token - Authentication token
+     * @param {Object} user - Stored user object
+     */
+    const validateStoredAuth = async (token, user) => {
+        try {
+            const response = await api.get('/auth/me');
+            const validatedUser = response.data.data.user;
+            
+            setAuthToken(token);
+            setCurrentUser(validatedUser);
+            setIsAuthenticated(true);
+
+            // Update stored user data
+            if (window.electron?.store) {
+                await window.electron.store.set('auth_user', validatedUser);
+            } else {
+                localStorage.setItem('auth_user', JSON.stringify(validatedUser));
+            }
+        } catch (error) {
+            // Token invalid - clear auth state
+            await performLogout();
+        }
+    };
+
+    /**
+     * Performs user login
+     * @param {string} username - User's username
+     * @param {string} password - User's password
+     * @returns {Promise<Object>} Result with success status and optional error
+     */
     const login = useCallback(async (username, password) => {
         try {
             const response = await api.post('/auth/login', { username, password });
 
             const responseData = response.data.data;
-            let userData, authToken;
+            let userData, token;
             
+            // Handle different response formats (with or without tokens wrapper)
             if (responseData.tokens) {
                 userData = responseData.user;
-                authToken = responseData.tokens.accessToken;
+                token = responseData.tokens.accessToken;
             } else {
                 userData = responseData.user;
-                authToken = responseData.token;
+                token = responseData.token;
             }
 
-            if (window.electron?.store) {
-                await window.electron.store.set('auth_token', authToken);
-                await window.electron.store.set('auth_user', userData);
-            } else {
-                localStorage.setItem('auth_token', authToken);
-                localStorage.setItem('auth_user', JSON.stringify(userData));
-            }
+            // Store authentication data
+            await saveAuthData(token, userData);
 
-            setToken(authToken);
-            setUser(userData);
+            setAuthToken(token);
+            setCurrentUser(userData);
             setIsAuthenticated(true);
 
             return { success: true };
         } catch (error) {
-            const message = error.response?.data?.message || 'Login failed';
-            return { success: false, error: message };
+            const errorMessage = error.response?.data?.message || 'Login failed';
+            return { success: false, error: errorMessage };
         }
     }, []);
 
+    /**
+     * Performs user registration
+     * @param {Object} userData - New user data
+     * @returns {Promise<Object>} Result with success status and optional error
+     */
     const register = useCallback(async (userData) => {
         try {
             const response = await api.post('/auth/register', userData);
             console.log('[Auth] Register response:', response.data);
 
             // Handle different response formats
-            let user, authToken;
+            let registeredUser, authToken;
             
             if (response.data.data) {
-                // Response has { success, message, data: { user, tokens } }
-                const responseData = response.data.data;
-                if (responseData.tokens) {
-                    user = responseData.user;
-                    authToken = responseData.tokens.accessToken;
+                const responsePayload = response.data.data;
+                if (responsePayload.tokens) {
+                    registeredUser = responsePayload.user;
+                    authToken = responsePayload.tokens.accessToken;
                 } else {
-                    user = responseData.user;
-                    authToken = responseData.token;
+                    registeredUser = responsePayload.user;
+                    authToken = responsePayload.token;
                 }
             } else {
-                // Fallback
-                user = response.data.user || userData;
+                registeredUser = response.data.user || userData;
                 authToken = response.data.accessToken || response.data.token;
             }
 
@@ -139,63 +185,101 @@ export const AuthProvider = ({ children }) => {
                 throw new Error('No authentication token received');
             }
 
-            if (window.electron?.store) {
-                await window.electron.store.set('auth_token', authToken);
-                await window.electron.store.set('auth_user', user);
-            } else {
-                localStorage.setItem('auth_token', authToken);
-                localStorage.setItem('auth_user', JSON.stringify(user));
-            }
+            // Store authentication data
+            await saveAuthData(authToken, registeredUser);
 
-            setToken(authToken);
-            setUser(user);
+            setAuthToken(authToken);
+            setCurrentUser(registeredUser);
             setIsAuthenticated(true);
 
             return { success: true };
         } catch (error) {
             console.error('[Auth] Register error:', error);
-            const message = error.response?.data?.message || error.message || 'Registration failed';
-            return { success: false, error: message };
+            const errorMessage = error.response?.data?.message || error.message || 'Registration failed';
+            return { success: false, error: errorMessage };
         }
     }, []);
 
+    /**
+     * Saves authentication data to appropriate storage
+     * @param {string} token - Authentication token
+     * @param {Object} user - User data
+     */
+    const saveAuthData = async (token, user) => {
+        if (window.electron?.store) {
+            await window.electron.store.set('auth_token', token);
+            await window.electron.store.set('auth_user', user);
+        } else {
+            localStorage.setItem('auth_token', token);
+            localStorage.setItem('auth_user', JSON.stringify(user));
+        }
+    };
+
+    /**
+     * Performs user logout
+     */
     const logout = useCallback(async () => {
         try {
             await api.post('/auth/logout');
         } catch (error) {
+            // Ignore logout API errors
         } finally {
-            if (window.electron?.store) {
-                await window.electron.store.delete('auth_token');
-                await window.electron.store.delete('auth_user');
-            } else {
-                localStorage.removeItem('auth_token');
-                localStorage.removeItem('auth_user');
-            }
-
-            setToken(null);
-            setUser(null);
-            setIsAuthenticated(false);
+            await performLogout();
         }
     }, []);
 
-    const hasRole = useCallback((requiredRole) => {
-        if (!user) return false;
-        return user.role === requiredRole;
-    }, [user]);
+    /**
+     * Clears authentication data from state and storage
+     */
+    const performLogout = async () => {
+        if (window.electron?.store) {
+            await window.electron.store.delete('auth_token');
+            await window.electron.store.delete('auth_user');
+        } else {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_user');
+        }
 
-    const hasMinRole = useCallback((requiredRole) => {
-        if (!user) return false;
-        const userLevel = ROLE_HIERARCHY[user.role] || 0;
+        setAuthToken(null);
+        setCurrentUser(null);
+        setIsAuthenticated(false);
+    };
+
+    /**
+     * Checks if user has exact role
+     * @param {string} requiredRole - Role to check for
+     * @returns {boolean} True if user has the exact role
+     */
+    const hasRole = useCallback((requiredRole) => {
+        if (!currentUser) return false;
+        return currentUser.role === requiredRole;
+    }, [currentUser]);
+
+    /**
+     * Checks if user has minimum role level (inclusive)
+     * @param {string} requiredRole - Minimum role required
+     * @returns {boolean} True if user's role meets minimum requirement
+     */
+    const hasMinimumRole = useCallback((requiredRole) => {
+        if (!currentUser) return false;
+        const userLevel = ROLE_HIERARCHY[currentUser.role] || 0;
         const requiredLevel = ROLE_HIERARCHY[requiredRole] || 0;
         return userLevel >= requiredLevel;
-    }, [user]);
+    }, [currentUser]);
 
+    /**
+     * Checks if user has specific permission
+     * @param {string} permission - Permission to check for
+     * @returns {boolean} True if user has the permission
+     */
     const hasPermission = useCallback((permission) => {
-        if (!user) return false;
+        if (!currentUser) return false;
 
-        if (user.role === ROLES.ADMIN) return true;
+        // Admin has all permissions
+        if (currentUser.role === ROLES.ADMIN) return true;
 
-        const permissions = {
+        // Define role-specific permissions
+        const rolePermissions = {
             [ROLES.MANAGER]: [
                 'view_dashboard',
                 'view_products', 'create_products', 'edit_products',
@@ -212,17 +296,23 @@ export const AuthProvider = ({ children }) => {
             ]
         };
 
-        const userPermissions = permissions[user.role] || [];
+        const userPermissions = rolePermissions[currentUser.role] || [];
         return userPermissions.includes(permission);
-    }, [user]);
+    }, [currentUser]);
 
+    /**
+     * Updates user profile
+     * @param {Object} updates - Profile fields to update
+     * @returns {Promise<Object>} Result with success status and optional error
+     */
     const updateProfile = useCallback(async (updates) => {
         try {
             const response = await api.put('/auth/profile', updates);
             const updatedUser = response.data.data.user;
 
-            setUser(updatedUser);
+            setCurrentUser(updatedUser);
 
+            // Update stored user data
             if (window.electron?.store) {
                 await window.electron.store.set('auth_user', updatedUser);
             } else {
@@ -231,37 +321,44 @@ export const AuthProvider = ({ children }) => {
 
             return { success: true, user: updatedUser };
         } catch (error) {
-            const message = error.response?.data?.message || 'Failed to update profile';
-            return { success: false, error: message };
+            const errorMessage = error.response?.data?.message || 'Failed to update profile';
+            return { success: false, error: errorMessage };
         }
     }, []);
 
+    /**
+     * Changes user password
+     * @param {string} currentPassword - Current password
+     * @param {string} newPassword - New password
+     * @returns {Promise<Object>} Result with success status and optional error
+     */
     const changePassword = useCallback(async (currentPassword, newPassword) => {
         try {
             await api.put('/auth/password', { currentPassword, newPassword });
             return { success: true };
         } catch (error) {
-            const message = error.response?.data?.message || 'Failed to change password';
-            return { success: false, error: message };
+            const errorMessage = error.response?.data?.message || 'Failed to change password';
+            return { success: false, error: errorMessage };
         }
     }, []);
 
+    // Context value object
     const value = {
-        user,
-        token,
+        user: currentUser,
+        token: authToken,
         isLoading,
         isAuthenticated,
         login,
         register,
         logout,
         hasRole,
-        hasMinRole,
+        hasMinRole: hasMinimumRole,
         hasPermission,
         updateProfile,
         changePassword,
-        isAdmin: user?.role === ROLES.ADMIN,
-        isManager: user?.role === ROLES.MANAGER,
-        isCashier: user?.role === ROLES.CASHIER
+        isAdmin: currentUser?.role === ROLES.ADMIN,
+        isManager: currentUser?.role === ROLES.MANAGER,
+        isCashier: currentUser?.role === ROLES.CASHIER
     };
 
     return (
