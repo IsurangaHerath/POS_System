@@ -134,20 +134,21 @@ const POSPage = () => {
         setIsProcessing(true);
 
         try {
+            // Map frontend field names to backend expected field names
+            // Frontend: discount -> Backend: discount_amount
+            // Frontend: amount_received -> Backend: amount_paid
+            // Backend calculates tax and total_amount internally from items
             const saleData = {
                 items: cart.map((item) => ({
                     product_id: item.id,
                     quantity: item.quantity,
                     unit_price: item.price,
-                    discount: 0
+                    discount: 0  // Per-item discount
                 })),
-                subtotal,
-                discount: discountAmount,
-                tax: taxAmount,
-                total_amount: total,
+                // Remove subtotal, tax, total_amount, change - backend calculates these
                 payment_method: paymentMethod,
-                amount_received: parseFloat(amountReceived),
-                change: Math.max(0, change)
+                amount_paid: parseFloat(amountReceived),  // Map to backend expected field name
+                discount_amount: discountAmount  // Map to backend expected field name
             };
 
             const response = await api.post('/sales', saleData);

@@ -7,9 +7,14 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
 const ReportsPage = () => {
     const { error } = useToast();
+    const { hasMinRole, user } = useAuth();
+
+    // Check if user has permission to view reports (Manager or Admin only)
+    const canViewReports = hasMinRole('manager');
 
     const [activeTab, setActiveTab] = useState('daily');
     const [isLoading, setIsLoading] = useState(false);
@@ -28,15 +33,15 @@ const ReportsPage = () => {
 
             switch (activeTab) {
                 case 'daily':
-                    endpoint = '/reports/daily';
+                    endpoint = '/reports/daily-sales';
                     params = { date: dateRange.start };
                     break;
                 case 'monthly':
-                    endpoint = '/reports/monthly';
+                    endpoint = '/reports/monthly-sales';
                     params = { month: dateRange.start.substring(0, 7) };
                     break;
                 case 'products':
-                    endpoint = '/reports/products';
+                    endpoint = '/reports/product-performance';
                     params = { start_date: dateRange.start, end_date: dateRange.end };
                     break;
                 default:
@@ -177,6 +182,33 @@ const ReportsPage = () => {
             currency: 'USD'
         }).format(amount || 0);
     };
+
+    // Check permission and show message if not authorized
+    if (!canViewReports) {
+        return (
+            <div className="space-y-6">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reports</h1>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">
+                        View and export sales reports
+                    </p>
+                </div>
+                <div className="card p-12 text-center">
+                    <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                        Access Restricted
+                    </h2>
+                    <p className="text-gray-500 dark:text-gray-400">
+                        Reports are available only for <strong>Manager</strong> and <strong>Admin</strong> roles.
+                        <br />
+                        Your current role is: <strong>{user?.role || 'Unknown'}</strong>
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">

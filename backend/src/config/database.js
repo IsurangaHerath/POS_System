@@ -66,7 +66,9 @@ async function closeConnection() {
 async function query(sql, params = []) {
     const startTime = Date.now();
     try {
-        const [results] = await pool.execute(sql, params);
+        // Use query() instead of execute() to properly handle LIMIT/OFFSET parameters
+        // execute() uses prepared statements which have issues with integer params in LIMIT
+        const [results] = await pool.query(sql, params);
         const duration = Date.now() - startTime;
 
         // Log slow queries (> 100ms)

@@ -92,13 +92,22 @@ const ProductForm = ({ product, categories, onSave, onCancel }) => {
 
         setIsSubmitting(true);
 
+        // Map frontend field names to backend expected field names
+        // Frontend: price -> Backend: selling_price
+        // Frontend: stock_quantity -> Backend: quantity_in_stock
+        // Frontend: min_stock_level -> Backend: reorder_level
         const submitData = {
-            ...formData,
-            category_id: formData.category_id || null,
-            price: parseFloat(formData.price) || 0,
+            name: formData.name,
+            sku: formData.sku,
+            barcode: formData.barcode || null,
+            category_id: formData.category_id ? parseInt(formData.category_id) : null,
+            description: formData.description || null,
+            selling_price: parseFloat(formData.price) || 0,
             cost_price: parseFloat(formData.cost_price) || 0,
-            stock_quantity: parseInt(formData.stock_quantity) || 0,
-            min_stock_level: parseInt(formData.min_stock_level) || 10
+            quantity_in_stock: parseInt(formData.stock_quantity) || 0,
+            reorder_level: parseInt(formData.min_stock_level) || 10,
+            unit: formData.unit,
+            is_active: formData.is_active
         };
 
         await onSave(submitData);

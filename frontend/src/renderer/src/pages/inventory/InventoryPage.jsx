@@ -93,11 +93,16 @@ const InventoryPage = () => {
 
         setIsSubmitting(true);
         try {
+            // Map frontend field names to backend expected field names
+            // Frontend: type: 'in'/'out' -> Backend: adjustment_type: 'add'/'subtract'
+            // Frontend: reason -> Backend: notes
+            const adjustmentType = adjustmentData.type === 'in' ? 'add' : 'subtract';
+            
             await api.post('/inventory/adjust', {
                 product_id: adjustingProduct.id,
-                type: adjustmentData.type,
+                adjustment_type: adjustmentType,
                 quantity: parseInt(adjustmentData.quantity),
-                reason: adjustmentData.reason
+                notes: adjustmentData.reason
             });
             success('Stock adjusted successfully');
             setShowAdjustModal(false);
