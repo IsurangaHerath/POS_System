@@ -9,6 +9,7 @@ import App from './App';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
+import { CartProvider } from './context/CartContext';
 import './index.css';
 
 // Get root element
@@ -20,9 +21,11 @@ root.render(
         <BrowserRouter>
             <ThemeProvider>
                 <ToastProvider>
-                    <AuthProvider>
-                        <App />
-                    </AuthProvider>
+                    <CartProvider>
+                        <AuthProvider>
+                            <App />
+                        </AuthProvider>
+                    </CartProvider>
                 </ToastProvider>
             </ThemeProvider>
         </BrowserRouter>

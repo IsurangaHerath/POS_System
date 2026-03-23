@@ -1,6 +1,6 @@
 /**
  * POS Page
- * 
+ *
  * Point of Sale interface with cart functionality
  */
 
@@ -8,6 +8,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCart } from '../../context/CartContext';
 
 // Components
 import Modal from '../../components/common/Modal';
@@ -15,11 +16,18 @@ import Modal from '../../components/common/Modal';
 const POSPage = () => {
     const { user } = useAuth();
     const { success, error } = useToast();
+    const {
+        cart,
+        addToCart,
+        updateCartQuantity,
+        removeFromCart,
+        clearCart,
+        refreshCart
+    } = useCart();
 
     // State
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
-    const [cart, setCart] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -41,8 +49,24 @@ const POSPage = () => {
                     api.get('/products', { params: { limit: 100, is_active: true } }),
                     api.get('/categories')
                 ]);
-                setProducts(productsRes.data.data || []);
+                // Map backend field names to frontend expected names
+                const productsData = (productsRes.data.data || []).map(item => ({
+                    ...item,
+                    id: item.id,
+                    name: item.name,
+                    sku: item.sku,
+                    barcode: item.barcode,
+                    price: parseFloat(item.selling_price) || 0,
+                    stock_quantity: item.quantity_in_stock,
+                    min_stock_level: item.reorder_level,
+                    category_name: item.category_name,
+                    image_url: item.image_url
+                }));
+                setProducts(productsData);
                 setCategories(categoriesRes.data.data || []);
+                
+                // Refresh cart with latest product data
+                refreshCart(productsData);
             } catch (err) {
                 error('Failed to load products');
             } finally {
@@ -50,7 +74,7 @@ const POSPage = () => {
             }
         };
         fetchData();
-    }, [error]);
+    }, [error, refreshCart]);
 
     // Filter products
     const filteredProducts = products.filter((product) => {
@@ -61,61 +85,24 @@ const POSPage = () => {
         return matchesSearch && matchesCategory && product.stock_quantity > 0;
     });
 
-    // Add to cart
-    const addToCart = (product) => {
-        setCart((prevCart) => {
-            const existingItem = prevCart.find((item) => item.id === product.id);
-
-            if (existingItem) {
-                // Check stock
-                if (existingItem.quantity >= product.stock_quantity) {
-                    error('Not enough stock');
-                    return prevCart;
-                }
-                return prevCart.map((item) =>
-                    item.id === product.id
-                        ? { ...item, quantity: item.quantity + 1 }
-                        : item
-                );
-            }
-
-            return [...prevCart, { ...product, quantity: 1 }];
-        });
+    // Handle add to cart with stock validation
+    const handleAddToCart = (product) => {
+        addToCart(product);
     };
 
-    // Update cart quantity
-    const updateCartQuantity = (productId, quantity) => {
-        if (quantity < 1) {
-            removeFromCart(productId);
-            return;
-        }
-
-        const product = products.find((p) => p.id === productId);
-        if (quantity > product.stock_quantity) {
-            error('Not enough stock');
-            return;
-        }
-
-        setCart((prevCart) =>
-            prevCart.map((item) =>
-                item.id === productId ? { ...item, quantity } : item
-            )
-        );
+    // Handle update cart quantity
+    const handleUpdateCartQuantity = (productId, quantity) => {
+        updateCartQuantity(productId, quantity, products);
     };
 
-    // Remove from cart
-    const removeFromCart = (productId) => {
-        setCart((prevCart) => prevCart.filter((item) => item.id !== productId));
-    };
-
-    // Clear cart
-    const clearCart = () => {
-        setCart([]);
+    // Handle clear cart
+    const handleClearCart = () => {
+        clearCart();
         setDiscount({ type: 'percentage', value: 0 });
     };
 
     // Calculate totals
-    const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const subtotal = cart.reduce((sum, item) => sum + (parseFloat(item.price) || 0) * item.quantity, 0);
     const discountAmount = discount.type === 'percentage'
         ? (subtotal * discount.value) / 100
         : discount.value;
@@ -199,7 +186,7 @@ const POSPage = () => {
         ${cart.map((item) => `
           <div class="item">
             <span>${item.name} x${item.quantity}</span>
-            <span>$${(item.price * item.quantity).toFixed(2)}</span>
+            <span>${((parseFloat(item.price) || 0) * item.quantity).toFixed(2)}</span>
           </div>
         `).join('')}
         <div class="divider"></div>
@@ -285,7 +272,7 @@ const POSPage = () => {
                             {filteredProducts.map((product) => (
                                 <button
                                     key={product.id}
-                                    onClick={() => addToCart(product)}
+                                    onClick={() => handleAddToCart(product)}
                                     className="card p-4 text-left hover:ring-2 hover:ring-blue-500 transition-all"
                                 >
                                     <div className="w-full h-24 bg-gray-100 dark:bg-gray-700 rounded-lg mb-3 flex items-center justify-center">
@@ -322,7 +309,7 @@ const POSPage = () => {
                     </h3>
                     {cart.length > 0 && (
                         <button
-                            onClick={clearCart}
+                            onClick={handleClearCart}
                             className="text-sm text-red-600 hover:text-red-700"
                         >
                             Clear All
@@ -349,19 +336,19 @@ const POSPage = () => {
                                             {item.name}
                                         </h4>
                                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                                            {formatCurrency(item.price)} each
+                                            {formatCurrency(parseFloat(item.price) || 0)} each
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <button
-                                            onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
+                                            onClick={() => handleUpdateCartQuantity(item.id, item.quantity - 1)}
                                             className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-600 flex items-center justify-center hover:bg-gray-300 dark:hover:bg-gray-500"
                                         >
                                             -
                                         </button>
                                         <span className="w-8 text-center font-medium">{item.quantity}</span>
                                         <button
-                                            onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
+                                            onClick={() => handleUpdateCartQuantity(item.id, item.quantity + 1)}
                                             className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-600 flex items-center justify-center hover:bg-gray-300 dark:hover:bg-gray-500"
                                         >
                                             +
