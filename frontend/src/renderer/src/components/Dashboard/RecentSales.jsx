@@ -98,7 +98,7 @@ const RecentSales = ({ sales, formatCurrency }) => {
                                             {sale.invoice_number}
                                         </p>
                                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                                            {formatTime(sale.created_at)}
+                                            {formatTime(sale.sale_date || sale.created_at)}
                                         </p>
                                     </div>
                                 </div>
@@ -107,7 +107,7 @@ const RecentSales = ({ sales, formatCurrency }) => {
                                         {formatCurrency(sale.total_amount)}
                                     </p>
                                     <span className="badge badge-success text-xs">
-                                        {sale.status}
+                                        {sale.status || 'completed'}
                                     </span>
                                 </div>
                             </Link>

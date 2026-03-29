@@ -3,10 +3,12 @@
  * 
  * MySQL database connection pool configuration using mysql2/promise.
  * Provides a comprehensive database abstraction layer with:
- * - Connection pooling
+ * - Connection pooling (optimized for cloud)
  * - Query execution helpers
  * - Transaction support
  * - Query performance logging
+ * - SSL support for cloud databases
+ * - Retry logic for connection failures
  */
 
 const mysql = require('mysql2/promise');
@@ -18,45 +20,102 @@ const logger = require('../utils/logger');
 
 /**
  * Database connection configuration
- * Values are loaded from environment variables with sensible defaults
+ * Values are loaded from environment variables with cloud-optimized defaults
  */
 const databaseConfig = {
+    // Connection settings
     host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 3306,
+    port: parseInt(process.env.DB_PORT) || 3306,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'pos_system',
+    
+    // Connection pooling (cloud-optimized)
     waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
+    connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 20,
+    queueLimit: parseInt(process.env.DB_QUEUE_LIMIT) || 0,
+    
+    // Keep-alive settings for long-running connections
     enableKeepAlive: true,
-    keepAliveInitialDelay: 0,
-    timezone: '+00:00',
-    charset: 'utf8mb4'
+    keepAliveInitialDelay: 10000,
+    
+    // Timeout settings for cloud environments
+    connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
+    acquireTimeout: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 10000,
+    
+    // Timezone and charset
+    timezone: process.env.DB_TIMEZONE || '+00:00',
+    charset: process.env.DB_CHARSET || 'utf8mb4',
+    
+    // SSL configuration for cloud databases
+    ssl: process.env.DB_SSL === 'true' ? {
+        rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false'
+    } : null
 };
 
 // Create the connection pool
 const pool = mysql.createPool(databaseConfig);
+
+// Track connection health
+let connectionHealth = {
+    lastSuccessfulConnection: null,
+    consecutiveFailures: 0,
+    maxConsecutiveFailures: 5
+};
 
 // ============================================
 // CONNECTION MANAGEMENT
 // ============================================
 
 /**
- * Tests the database connection
+ * Tests the database connection with retry logic for cloud environments
  * @returns {Promise<boolean>} True if connection successful
- * @throws {Error} If connection fails
+ * @throws {Error} If connection fails after retries
  */
-async function testConnection() {
-    try {
-        const connection = await pool.getConnection();
-        await connection.ping();
-        connection.release();
-        return true;
-    } catch (error) {
-        logger.error('Database connection failed:', error.message);
-        throw error;
+async function testConnection(retries = 3, delay = 1000) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            logger.info(`Database connection attempt ${attempt}/${retries}...`);
+            
+            const connection = await pool.getConnection();
+            await connection.ping();
+            connection.release();
+            
+            connectionHealth.lastSuccessfulConnection = new Date();
+            connectionHealth.consecutiveFailures = 0;
+            logger.info('Database connection established successfully');
+            
+            return true;
+        } catch (error) {
+            logger.error(`Database connection attempt ${attempt} failed:`, error.message);
+            
+            if (attempt < retries) {
+                logger.info(`Retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                delay *= 2; // Exponential backoff
+            } else {
+                connectionHealth.consecutiveFailures++;
+                logger.error('All database connection attempts failed');
+                throw error;
+            }
+        }
     }
+}
+
+/**
+ * Checks if database connection is healthy
+ * @returns {boolean} True if healthy
+ */
+function isHealthy() {
+    if (connectionHealth.consecutiveFailures >= connectionHealth.maxConsecutiveFailures) {
+        return false;
+    }
+    if (!connectionHealth.lastSuccessfulConnection) {
+        return true;
+    }
+    // Consider unhealthy if no successful connection in last 5 minutes
+    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    return connectionHealth.lastSuccessfulConnection.getTime() > fiveMinutesAgo;
 }
 
 /**

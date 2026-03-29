@@ -121,15 +121,12 @@ npm install
 
 ### 3.3 Start the Application
 
-For development (React + Electron):
+For development:
 ```bash
-npm run electron:dev
+npm run dev
 ```
 
-This will:
-1. Start the Vite development server (React)
-2. Wait for it to be ready
-3. Launch the Electron desktop application
+This will start the Vite development server.
 
 ---
 
@@ -175,10 +172,10 @@ Then open: http://localhost:5173
 - Run `npm install` again in both backend and frontend folders
 - Delete `node_modules` folder and `package-lock.json`, then run `npm install`
 
-### Electron window doesn't open
+### Frontend window doesn't open
 - Check terminal for errors
 - Make sure port 5173 is not blocked
-- Try running `npm run dev` first to test React, then `npm run electron:dev`
+- Verify all dependencies are installed with `npm install`
 
 ---
 
@@ -219,7 +216,7 @@ npm run dev
 # Terminal 2 - Frontend
 cd frontend
 npm install
-npm run electron:dev
+npm run dev
 ```
 
 ---
@@ -228,4 +225,4 @@ npm run electron:dev
 
 1. Check the full documentation in `docs/SETUP_GUIDE.md`
 2. Check API documentation in `docs/API_DOCUMENTATION.md`
-3. Review the architecture in `plans/POS-System-Architecture.md`
+3. Review the system documentation in `SYSTEM.md`

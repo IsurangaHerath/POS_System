@@ -25,6 +25,32 @@ router.get('/',
 );
 
 /**
+ * @route   GET /api/settings/currency
+ * @desc    Get currency settings
+ * @access  Public (no auth required for app initialization)
+ */
+// IMPORTANT: This route must be BEFORE /:key to prevent it from being matched as a parameter
+router.get('/currency',
+    asyncHandler(settingsController.getCurrencySettings)
+);
+
+/**
+ * @route   PUT /api/settings/currency
+ * @desc    Update currency settings
+ * @access  Private (Admin only)
+ */
+router.put('/currency',
+    authenticate,
+    adminOnly,
+    [
+        body('currency_code')
+            .notEmpty()
+            .withMessage('Currency code is required')
+    ],
+    asyncHandler(settingsController.updateCurrencySettings)
+);
+
+/**
  * @route   GET /api/settings/:key
  * @desc    Get setting by key
  * @access  Private (Admin only)
@@ -33,22 +59,6 @@ router.get('/:key',
     authenticate,
     adminOnly,
     asyncHandler(settingsController.getSettingByKey)
-);
-
-/**
- * @route   PUT /api/settings/:key
- * @desc    Update setting
- * @access  Private (Admin only)
- */
-router.put('/:key',
-    authenticate,
-    adminOnly,
-    [
-        body('value')
-            .notEmpty()
-            .withMessage('Setting value is required')
-    ],
-    asyncHandler(settingsController.updateSetting)
 );
 
 module.exports = router;

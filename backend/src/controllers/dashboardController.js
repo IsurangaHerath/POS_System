@@ -228,9 +228,39 @@ const getLowStockAlerts = async (req, res, next) => {
     }
 };
 
+/**
+ * Get recent sales
+ * @route GET /api/dashboard/recent-sales
+ */
+const getRecentSales = async (req, res, next) => {
+    try {
+        const { limit = 10 } = req.query;
+
+        const sales = await Sale.findAll({
+            limit: parseInt(limit),
+            status: 'completed'
+        });
+
+        const recentSales = sales.map(s => ({
+            id: s.id,
+            invoice_number: s.invoice_number,
+            total_amount: s.total_amount,
+            payment_method: s.payment_method,
+            sale_date: s.sale_date,
+            cashier_name: s.cashier_name,
+            item_count: s.item_count
+        }));
+
+        return successResponse(res, recentSales);
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getSummary,
     getSalesChartData,
     getTopProducts,
-    getLowStockAlerts
+    getLowStockAlerts,
+    getRecentSales
 };

@@ -51,4 +51,14 @@ router.get('/low-stock',
     asyncHandler(dashboardController.getLowStockAlerts)
 );
 
+/**
+ * @route   GET /api/dashboard/recent-sales
+ * @desc    Get recent sales
+ * @access  Private
+ */
+router.get('/recent-sales',
+    authenticate,
+    asyncHandler(dashboardController.getRecentSales)
+);
+
 module.exports = router;

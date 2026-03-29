@@ -4,18 +4,18 @@
  * Main dashboard displaying key metrics and widgets including:
  * - Sales statistics (today and monthly)
  * - Product counts and low stock alerts
- * - Sales chart visualization
  * - Top products list
+ * - Low stock products list
  * - Recent sales activity
  */
 
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 
 // Dashboard component imports
 import StatCard from '../../components/Dashboard/StatCard';
-import SalesChart from '../../components/Dashboard/SalesChart';
 import TopProducts from '../../components/Dashboard/TopProducts';
 import LowStockAlert from '../../components/Dashboard/LowStockAlert';
 import RecentSales from '../../components/Dashboard/RecentSales';
@@ -27,6 +27,8 @@ import RecentSales from '../../components/Dashboard/RecentSales';
 const DashboardPage = () => {
     // Authentication context
     const { user: currentUser } = useAuth();
+    // Currency context
+    const { formatPrice } = useCurrency();
 
     // Loading state
     const [isLoading, setIsLoading] = useState(true);
@@ -41,7 +43,6 @@ const DashboardPage = () => {
             totalProducts: 0,
             lowStockCount: 0
         },
-        salesChart: [],
         topProducts: [],
         lowStockProducts: [],
         recentSales: []
@@ -59,18 +60,13 @@ const DashboardPage = () => {
                 // Fetch all dashboard components in parallel
                 const [
                     statsResponse,
-                    chartResponse,
                     topProductsResponse,
                     lowStockResponse,
                     recentSalesResponse
                 ] = await Promise.all([
                     // Statistics endpoint
-                    api.get('/dashboard/stats').catch(() => ({ 
+                    api.get('/dashboard/summary').catch(() => ({ 
                         data: { data: dashboardData.stats } 
-                    })),
-                    // Sales chart endpoint
-                    api.get('/dashboard/sales-chart').catch(() => ({ 
-                        data: { data: [] } 
                     })),
                     // Top products endpoint
                     api.get('/dashboard/top-products').catch(() => ({ 
@@ -86,10 +82,20 @@ const DashboardPage = () => {
                     }))
                 ]);
 
+                // Map backend response to frontend expected format
+                const summaryData = statsResponse.data.data;
+                const mappedStats = summaryData ? {
+                    todaySales: summaryData.today?.total_sales || 0,
+                    todayOrders: summaryData.today?.transactions || 0,
+                    monthlyRevenue: summaryData.month?.total_sales || 0,
+                    monthlyOrders: summaryData.month?.transactions || 0,
+                    totalProducts: summaryData.inventory?.total_products || 0,
+                    lowStockCount: summaryData.inventory?.low_stock_count || 0
+                } : dashboardData.stats;
+
                 // Update state with fetched data
                 setDashboardData({
-                    stats: statsResponse.data.data || dashboardData.stats,
-                    salesChart: chartResponse.data.data || [],
+                    stats: mappedStats,
                     topProducts: topProductsResponse.data.data || [],
                     lowStockProducts: lowStockResponse.data.data || [],
                     recentSales: recentSalesResponse.data.data || []
@@ -105,15 +111,12 @@ const DashboardPage = () => {
     }, []);
 
     /**
-     * Formats a numeric amount as USD currency
+     * Formats a numeric amount using global currency context
      * @param {number} amount - The amount to format
      * @returns {string} Formatted currency string
      */
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(amount || 0);
+        return formatPrice(amount || 0);
     };
 
     /**
@@ -214,22 +217,17 @@ const DashboardPage = () => {
                 />
             </div>
 
-            {/* Charts and Top Products Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                    <SalesChart data={dashboardData.salesChart} />
-                </div>
-                <div>
-                    <TopProducts 
-                        products={dashboardData.topProducts} 
-                        formatCurrency={formatCurrency} 
-                    />
-                </div>
-            </div>
-
-            {/* Alerts and Recent Activity Row */}
+            {/* Top Products and Low Stock Alert Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <LowStockAlert products={dashboardData.lowStockProducts} />
+                <TopProducts 
+                    products={dashboardData.topProducts} 
+                    formatCurrency={formatCurrency} 
+                />
+            </div>
+
+            {/* Recent Sales Row */}
+            <div className="grid grid-cols-1 gap-6">
                 <RecentSales 
                     sales={dashboardData.recentSales} 
                     formatCurrency={formatCurrency} 

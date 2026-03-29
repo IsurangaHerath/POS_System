@@ -3,6 +3,7 @@
  * 
  * Main application setup including middleware, routes, and error handling.
  * This is the entry point for the Express.js backend server.
+ * Configured for cloud deployment with proper security middleware.
  */
 
 // Core framework and third-party middleware imports
@@ -34,60 +35,105 @@ const settingsRoutes = require('./routes/settings.routes');
 // Initialize Express application
 const app = express();
 
+// Environment detection
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
 // ============================================
 // SECURITY MIDDLEWARE
 // ============================================
 
-// Helmet - HTTP security headers
+// Helmet - HTTP security headers with production optimizations
 app.use(helmet({
-    contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false
-}));
-
-// CORS - Cross-Origin Resource Sharing
-app.use(cors({
-    origin: process.env.CORS_ORIGIN || '*',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
-
-// Rate limiting - Prevent abuse and DDoS
-const apiLimiter = rateLimit({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes default
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 300, // 300 requests per window
-    message: {
-        success: false,
-        error: {
-            code: 'RATE_LIMIT_ERROR',
-            message: 'Too many requests, please try again later.'
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            imgSrc: ["'self'", "data:", "https:"],
+            scriptSrc: ["'self'"],
+            connectSrc: ["'self'", "https://api.stripe.com"]
         }
     },
-    standardHeaders: true,
-    legacyHeaders: false,
-    handler: (request, response) => {
-        logger.warn(`Rate limit exceeded for IP: ${request.ip}`);
-        response.status(429).json({
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// CORS - Cross-Origin Resource Sharing for cloud deployment
+const getCorsOptions = () => {
+    // Parse allowed origins from environment variable
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [];
+    
+    // Add default production frontend URL if in production and no origins specified
+    if (IS_PRODUCTION && allowedOrigins.length === 0) {
+        allowedOrigins.push(process.env.FRONTEND_URL || 'http://localhost:3000');
+    }
+    
+    // Add localhost for development
+    if (!IS_PRODUCTION) {
+        allowedOrigins.push('http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000');
+    }
+    
+    return {
+        origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-API-Key'],
+        exposedHeaders: ['X-Total-Count', 'X-Page-Number', 'X-Page-Size'],
+        maxAge: 86400 // 24 hours
+    };
+};
+
+app.use(cors(getCorsOptions()));
+
+// Rate limiting - Prevent abuse and DDoS with production adjustments
+const getRateLimitConfig = () => {
+    const baseConfig = {
+        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes default
+        max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || (IS_PRODUCTION ? 500 : 1000),
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: {
             success: false,
             error: {
                 code: 'RATE_LIMIT_ERROR',
                 message: 'Too many requests, please try again later.'
             }
-        });
-    }
-});
+        },
+        skip: (req) => {
+            // Don't rate limit essential routes
+            if (req.path.startsWith('/api/auth/')) return true;
+            if (req.path === '/api/health') return true;
+            return false;
+        },
+        handler: (request, response) => {
+            logger.warn(`Rate limit exceeded for IP: ${request.ip}, Path: ${request.path}`);
+            response.status(429).json({
+                success: false,
+                error: {
+                    code: 'RATE_LIMIT_ERROR',
+                    message: 'Too many requests, please try again later.'
+                }
+            });
+        }
+    };
+    
+    return baseConfig;
+};
 
+const apiLimiter = rateLimit(getRateLimitConfig());
 app.use('/api/', apiLimiter);
 
 // ============================================
 // REQUEST PARSING MIDDLEWARE
 // ============================================
 
-// Parse JSON bodies with 10MB limit
-app.use(express.json({ limit: '10mb' }));
+// Parse JSON bodies with configurable limit (default 10MB for cloud)
+const jsonLimit = process.env.JSON_BODY_LIMIT || '10mb';
+app.use(express.json({ limit: jsonLimit }));
 
-// Parse URL-encoded bodies with extended parsing and 10MB limit
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Parse URL-encoded bodies with extended parsing
+const urlencodedLimit = process.env.URLENCODED_BODY_LIMIT || '10mb';
+app.use(express.urlencoded({ extended: true, limit: urlencodedLimit }));
 
 // ============================================
 // LOGGING MIDDLEWARE

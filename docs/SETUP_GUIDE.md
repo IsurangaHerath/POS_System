@@ -267,8 +267,6 @@ npm install
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.1",
     "axios": "^1.6.2",
-    "electron": "^28.0.0",
-    "electron-store": "^8.1.0",
     "chart.js": "^4.4.1",
     "react-chartjs-2": "^5.2.0",
     "tailwindcss": "^3.3.6",
@@ -278,7 +276,6 @@ npm install
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
     "vite": "^5.0.7",
-    "electron-builder": "^24.9.1",
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.32"
   }
@@ -373,9 +370,10 @@ npm run dev
 
 **Terminal 3 - Electron (optional):**
 ```bash
-cd frontend
-npm run electron:dev
+npm run dev
 ```
+
+This starts the Vite development server.
 
 ### Production Mode
 
@@ -389,8 +387,9 @@ npm start
 ```bash
 cd frontend
 npm run build
-npm run electron
 ```
+
+Output will be in `frontend/dist/` directory. Serve with any static file server.
 
 ---
 
@@ -494,12 +493,9 @@ docker run -p 5000:5000 pos-backend
 cd frontend
 
 # Build for current platform
-npm run electron:build
+npm run build
 
-# Build for specific platform
-npm run electron:build:win   # Windows
-npm run electron:build:mac   # macOS
-npm run electron:build:linux # Linux
+# Note: No Electron build needed - this is a web application.
 ```
 
 Output will be in `frontend/dist/` directory.
@@ -550,15 +546,15 @@ kill -9 <PID>
 - Check token expiration
 - Clear localStorage and re-login
 
-#### 4. Electron App Won't Start
+#### 4. Module Not Found
 
-**Error:** `Cannot find module 'electron'`
+**Error:** `Module not found`
 
 **Solution:**
 ```bash
-# Reinstall electron
-npm uninstall electron
-npm install electron --save-dev
+# Verify all dependencies are installed
+cd backend && npm install
+cd ../frontend && npm install
 ```
 
 #### 5. CORS Error

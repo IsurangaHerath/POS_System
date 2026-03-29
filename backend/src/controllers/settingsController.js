@@ -59,7 +59,7 @@ const updateSetting = async (req, res, next) => {
         const existing = await db.getOne(checkSql, [key]);
 
         if (!existing) {
-            // Create new setting if doesn't exist
+            // Insert new setting
             const insertSql = 'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)';
             await db.query(insertSql, [key, value]);
         } else {
@@ -68,12 +68,80 @@ const updateSetting = async (req, res, next) => {
             await db.query(updateSql, [value, key]);
         }
 
-        // Get updated setting
-        const setting = await db.getOne(checkSql, [key]);
+        logger.info(`Setting '${key}' updated by ${req.user?.username || 'unknown'}`);
 
-        logger.info(`Setting updated: ${key} by ${req.user.username}`);
+        // Return the updated setting
+        return getSettingByKey(req, res, next);
+    } catch (error) {
+        next(error);
+    }
+};
 
-        return successResponse(res, setting, 'Setting updated successfully');
+/**
+ * Get currency settings
+ * @route GET /api/settings/currency
+ */
+const getCurrencySettings = async (req, res, next) => {
+    try {
+        const sql = 'SELECT * FROM settings WHERE setting_key LIKE "currency_%"';
+        const settings = await db.getMany(sql);
+
+        // Convert array to object
+        const currencySettings = {};
+        settings.forEach(setting => {
+            currencySettings[setting.setting_key] = setting.setting_value;
+        });
+
+        // Set defaults if not found
+        if (!currencySettings.currency_code) {
+            currencySettings.currency_code = 'USD';
+        }
+        if (!currencySettings.exchange_rate) {
+            currencySettings.exchange_rate = '1';
+        }
+        if (!currencySettings.currency_symbol) {
+            currencySettings.currency_symbol = '$';
+        }
+
+        return successResponse(res, currencySettings);
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Update currency settings
+ * @route PUT /api/settings/currency
+ */
+const updateCurrencySettings = async (req, res, next) => {
+    try {
+        const { currency_code, exchange_rate, currency_symbol } = req.body;
+
+        const settingsToUpdate = [
+            { key: 'currency_code', value: currency_code },
+            { key: 'exchange_rate', value: exchange_rate },
+            { key: 'currency_symbol', value: currency_symbol }
+        ];
+
+        for (const setting of settingsToUpdate) {
+            if (setting.value !== undefined) {
+                const checkSql = 'SELECT * FROM settings WHERE setting_key = ?';
+                const existing = await db.getOne(checkSql, [setting.key]);
+
+                if (!existing) {
+                    const insertSql = 'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)';
+                    await db.query(insertSql, [setting.key, setting.value.toString()]);
+                } else {
+                    const updateSql = 'UPDATE settings SET setting_value = ? WHERE setting_key = ?';
+                    await db.query(updateSql, [setting.value.toString(), setting.key]);
+                }
+            }
+        }
+
+        logger.info(`Currency settings updated by ${req.user.username}`);
+
+        // Return updated settings
+        return getCurrencySettings(req, res, next);
     } catch (error) {
         next(error);
     }
@@ -82,5 +150,7 @@ const updateSetting = async (req, res, next) => {
 module.exports = {
     getSettings,
     getSettingByKey,
-    updateSetting
+    updateSetting,
+    getCurrencySettings,
+    updateCurrencySettings
 };

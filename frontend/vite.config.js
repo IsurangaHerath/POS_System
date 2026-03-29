@@ -1,7 +1,7 @@
 /**
  * Vite Configuration
  * 
- * Configuration for React + Electron development
+ * Configuration for React frontend development and build process.
  */
 
 import { defineConfig } from 'vite';

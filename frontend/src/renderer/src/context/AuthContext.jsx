@@ -24,9 +24,22 @@ export const useAuth = () => {
     return context;
 };
 
-// ============================================
-// ROLE DEFINITIONS
-// ============================================
+// Global loading state to prevent flash during auth initialization
+export const AuthInitializer = ({ children }) => {
+    const { isLoading } = useAuth();
+
+    // Don't render anything until auth is initialized
+    // This prevents the flash/blink during auth validation
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+        );
+    }
+
+    return children;
+};
 
 /**
  * Available user roles in the system
@@ -65,22 +78,39 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const initializeAuth = async () => {
             try {
-                if (window.electron?.store) {
-                    // Electron environment - use secure storage
-                    const storedToken = await window.electron.store.get('auth_token');
-                    const storedUser = await window.electron.store.get('auth_user');
+                // Get stored auth data from localStorage (browser environment)
+                const storedToken = localStorage.getItem('auth_token');
+                const storedUser = localStorage.getItem('auth_user');
 
-                    if (storedToken && storedUser) {
-                        await validateStoredAuth(storedToken, storedUser);
-                    }
-                } else {
-                    // Browser environment - use localStorage
-                    const storedToken = localStorage.getItem('auth_token');
-                    const storedUser = localStorage.getItem('auth_user');
+                // If no stored token, skip API call and show login immediately
+                if (!storedToken || !storedUser) {
+                    setIsLoading(false);
+                    return;
+                }
 
-                    if (storedToken && storedUser) {
-                        await validateStoredAuth(storedToken, JSON.parse(storedUser));
-                    }
+                // Try to validate token with a short timeout
+                const TIMEOUT_MS = 3000;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+                try {
+                    const response = await api.get('/auth/me', { 
+                        signal: controller.signal 
+                    });
+                    clearTimeout(timeoutId);
+                    
+                    const validatedUser = response.data.data.user;
+                    setAuthToken(storedToken);
+                    setCurrentUser(validatedUser);
+                    setIsAuthenticated(true);
+
+                    // Update stored user data
+                    localStorage.setItem('auth_user', JSON.stringify(validatedUser));
+                } catch (apiError) {
+                    clearTimeout(timeoutId);
+                    // Token validation failed - clear auth
+                    console.warn('Token validation failed:', apiError.message);
+                    await performLogout();
                 }
             } catch (error) {
                 console.error('Auth initialization error:', error);
@@ -107,14 +137,12 @@ export const AuthProvider = ({ children }) => {
             setIsAuthenticated(true);
 
             // Update stored user data
-            if (window.electron?.store) {
-                await window.electron.store.set('auth_user', validatedUser);
-            } else {
-                localStorage.setItem('auth_user', JSON.stringify(validatedUser));
-            }
+            localStorage.setItem('auth_user', JSON.stringify(validatedUser));
+            return true;
         } catch (error) {
-            // Token invalid - clear auth state
-            await performLogout();
+            // Token invalid - clear auth state (don't throw, just return false)
+            console.warn('Token validation failed:', error.message);
+            return false;
         }
     };
 
@@ -126,12 +154,19 @@ export const AuthProvider = ({ children }) => {
      */
     const login = useCallback(async (username, password) => {
         try {
-            const response = await api.post('/auth/login', { username, password });
+            console.log('[Auth] Attempting login for:', username);
+            
+            const response = await api.post('/auth/login', { 
+                username, 
+                password 
+            });
+            
+            console.log('[Auth] Login response status:', response.status);
+            console.log('[Auth] Login response data:', response.data);
 
             const responseData = response.data.data;
             let userData, token;
             
-            // Handle different response formats (with or without tokens wrapper)
             if (responseData.tokens) {
                 userData = responseData.user;
                 token = responseData.tokens.accessToken;
@@ -140,7 +175,9 @@ export const AuthProvider = ({ children }) => {
                 token = responseData.token;
             }
 
-            // Store authentication data
+            console.log('[Auth] Extracted user:', userData);
+            console.log('[Auth] Extracted token:', token ? 'present' : 'missing');
+
             await saveAuthData(token, userData);
 
             setAuthToken(token);
@@ -149,7 +186,9 @@ export const AuthProvider = ({ children }) => {
 
             return { success: true };
         } catch (error) {
-            const errorMessage = error.response?.data?.message || 'Login failed';
+            console.error('[Auth] Login error:', error);
+            console.error('[Auth] Error response:', error.response?.data);
+            const errorMessage = error.response?.data?.message || 'Login failed. Please try again.';
             return { success: false, error: errorMessage };
         }
     }, []);
@@ -206,13 +245,8 @@ export const AuthProvider = ({ children }) => {
      * @param {Object} user - User data
      */
     const saveAuthData = async (token, user) => {
-        if (window.electron?.store) {
-            await window.electron.store.set('auth_token', token);
-            await window.electron.store.set('auth_user', user);
-        } else {
-            localStorage.setItem('auth_token', token);
-            localStorage.setItem('auth_user', JSON.stringify(user));
-        }
+        localStorage.setItem('auth_token', token);
+        localStorage.setItem('auth_user', JSON.stringify(user));
     };
 
     /**
@@ -232,13 +266,8 @@ export const AuthProvider = ({ children }) => {
      * Clears authentication data from state and storage
      */
     const performLogout = async () => {
-        if (window.electron?.store) {
-            await window.electron.store.delete('auth_token');
-            await window.electron.store.delete('auth_user');
-        } else {
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('auth_user');
-        }
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
 
         setAuthToken(null);
         setCurrentUser(null);
@@ -313,11 +342,7 @@ export const AuthProvider = ({ children }) => {
             setCurrentUser(updatedUser);
 
             // Update stored user data
-            if (window.electron?.store) {
-                await window.electron.store.set('auth_user', updatedUser);
-            } else {
-                localStorage.setItem('auth_user', JSON.stringify(updatedUser));
-            }
+            localStorage.setItem('auth_user', JSON.stringify(updatedUser));
 
             return { success: true, user: updatedUser };
         } catch (error) {
@@ -346,6 +371,7 @@ export const AuthProvider = ({ children }) => {
     const value = {
         user: currentUser,
         token: authToken,
+        authToken, // Add authToken for route components
         isLoading,
         isAuthenticated,
         login,

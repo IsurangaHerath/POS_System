@@ -18,8 +18,22 @@ const getDailySalesReport = async (req, res, next) => {
         const { date } = req.query;
         const reportDate = date || new Date().toISOString().slice(0, 10);
 
-        // Get daily summary
+        // Get current day summary
         const summary = await Sale.getDailySummary(reportDate);
+
+        // Get previous day summary for comparison
+        const prevDate = new Date(reportDate);
+        prevDate.setDate(prevDate.getDate() - 1);
+        const prevDateStr = prevDate.toISOString().slice(0, 10);
+        const prevSummary = await Sale.getDailySummary(prevDateStr);
+
+        // Calculate comparison percentages
+        const revenueChange = prevSummary.total_sales > 0 
+            ? ((summary.total_sales - prevSummary.total_sales) / prevSummary.total_sales * 100).toFixed(1)
+            : 0;
+        const transactionChange = prevSummary.total_transactions > 0
+            ? ((summary.total_transactions - prevSummary.total_transactions) / prevSummary.total_transactions * 100).toFixed(1)
+            : 0;
 
         // Get hourly breakdown
         const hourlyBreakdown = await getHourlyBreakdown(reportDate);
@@ -43,6 +57,59 @@ const getDailySalesReport = async (req, res, next) => {
             endDate: reportDate
         });
 
+        // Get actual sale records for this day
+        const db = require('../config/database');
+        const salesSql = `
+            SELECT 
+                DATE(sale_date) as date,
+                COUNT(*) as count,
+                SUM(total_amount) as revenue,
+                SUM(tax_amount) as tax,
+                SUM(discount_amount) as discount,
+                GROUP_CONCAT(id) as sale_ids
+            FROM sales
+            WHERE DATE(sale_date) = ? AND status = 'completed'
+            GROUP BY DATE(sale_date)
+        `;
+        const dailySalesResult = await db.getOne(salesSql, [reportDate]);
+
+        // Get individual sale records for the table display
+        const individualSalesSql = `
+            SELECT 
+                s.id,
+                s.invoice_number,
+                DATE(s.sale_date) as date,
+                s.total_amount as revenue,
+                s.tax_amount as tax,
+                s.discount_amount as discount,
+                s.subtotal,
+                s.payment_method,
+                s.status,
+                u.full_name as cashier_name,
+                (SELECT COUNT(*) FROM sale_items WHERE sale_id = s.id) as item_count
+            FROM sales s
+            JOIN users u ON u.id = s.user_id
+            WHERE DATE(s.sale_date) = ? AND s.status = 'completed'
+            ORDER BY s.sale_date DESC
+        `;
+        const individualSales = await db.getMany(individualSalesSql, [reportDate]);
+
+        // Format sales data for frontend compatibility
+        const sales = individualSales.map(sale => ({
+            id: sale.id,
+            invoice_number: sale.invoice_number,
+            date: sale.date,
+            count: 1,
+            revenue: sale.revenue,
+            tax: sale.tax || 0,
+            discount: sale.discount || 0,
+            subtotal: sale.subtotal,
+            payment_method: sale.payment_method,
+            status: sale.status,
+            cashier_name: sale.cashier_name,
+            item_count: sale.item_count
+        }));
+
         const report = {
             date: reportDate,
             summary: {
@@ -53,9 +120,17 @@ const getDailySalesReport = async (req, res, next) => {
                 average_transaction: summary.average_transaction,
                 items_sold: topProducts.reduce((sum, p) => sum + p.total_quantity, 0)
             },
+            comparison: {
+                previous_period: prevDateStr,
+                previous_revenue: prevSummary.total_sales,
+                previous_transactions: prevSummary.total_transactions,
+                revenue_change_percent: revenueChange,
+                transaction_change_percent: transactionChange
+            },
             hourly_breakdown: hourlyBreakdown,
             payment_breakdown: paymentBreakdown,
-            top_products: topProducts
+            top_products: topProducts,
+            sales: sales
         };
 
         return successResponse(res, report);
@@ -71,12 +146,46 @@ const getDailySalesReport = async (req, res, next) => {
 const getMonthlySalesReport = async (req, res, next) => {
     try {
         const { year, month } = req.query;
+        
+        console.log('[ReportController] Monthly Sales - Received params:', { year, month });
+        
         const now = new Date();
-        const reportYear = parseInt(year) || now.getFullYear();
-        const reportMonth = parseInt(month) || (now.getMonth() + 1);
+        
+        // Handle month format: can be "YYYY-MM" or just "M" or "MM"
+        let reportYear, reportMonth;
+        if (month && month.includes('-')) {
+            // Format is "YYYY-MM" - extract year and month
+            const parts = month.split('-');
+            reportYear = parseInt(parts[0]) || now.getFullYear();
+            reportMonth = parseInt(parts[1]) || (now.getMonth() + 1);
+        } else if (month) {
+            // Only month provided (1-12), use provided year or current
+            reportYear = parseInt(year) || now.getFullYear();
+            reportMonth = parseInt(month) || (now.getMonth() + 1);
+        } else {
+            // Default to current month
+            reportYear = parseInt(year) || now.getFullYear();
+            reportMonth = now.getMonth() + 1;
+        }
 
-        // Get monthly summary
+        console.log('[ReportController] Parsed year/month:', { reportYear, reportMonth });
+
+        // Get current month summary
         const summary = await Sale.getMonthlySummary(reportYear, reportMonth);
+
+        // Get previous month summary for comparison
+        let prevMonthSummary = null;
+        let prevYear = reportMonth === 1 ? reportYear - 1 : reportYear;
+        let prevMonth = reportMonth === 1 ? 12 : reportMonth - 1;
+        prevMonthSummary = await Sale.getMonthlySummary(prevYear, prevMonth);
+
+        // Calculate comparison percentages
+        const revenueChange = prevMonthSummary.total_sales > 0 
+            ? ((summary.total_sales - prevMonthSummary.total_sales) / prevMonthSummary.total_sales * 100).toFixed(1)
+            : 0;
+        const transactionChange = prevMonthSummary.total_transactions > 0
+            ? ((summary.total_transactions - prevMonthSummary.total_transactions) / prevMonthSummary.total_transactions * 100).toFixed(1)
+            : 0;
 
         // Get daily breakdown
         const dailyBreakdown = await getDailyBreakdown(reportYear, reportMonth);
@@ -86,6 +195,51 @@ const getMonthlySalesReport = async (req, res, next) => {
 
         // Get category breakdown
         const categoryBreakdown = await getCategoryBreakdown(reportYear, reportMonth);
+
+        // Format sales data for frontend compatibility
+        const sales = dailyBreakdown.map(day => ({
+            date: day.date,
+            count: day.transactions || 0,
+            revenue: day.sales || 0,
+            tax: 0,
+            discount: 0
+        }));
+
+        // Get individual sale records for the month
+        const individualSalesSql = `
+            SELECT 
+                s.id,
+                s.invoice_number,
+                DATE(s.sale_date) as date,
+                s.total_amount as revenue,
+                s.tax_amount as tax,
+                s.discount_amount as discount,
+                s.subtotal,
+                s.payment_method,
+                s.status,
+                u.full_name as cashier_name,
+                (SELECT COUNT(*) FROM sale_items WHERE sale_id = s.id) as item_count
+            FROM sales s
+            JOIN users u ON u.id = s.user_id
+            WHERE YEAR(s.sale_date) = ? AND MONTH(s.sale_date) = ? AND s.status = 'completed'
+            ORDER BY s.sale_date DESC
+        `;
+        const individualSales = await db.getMany(individualSalesSql, [reportYear, reportMonth]);
+
+        const individualSalesFormatted = individualSales.map(sale => ({
+            id: sale.id,
+            invoice_number: sale.invoice_number,
+            date: sale.date,
+            count: 1,
+            revenue: sale.revenue,
+            tax: sale.tax || 0,
+            discount: sale.discount || 0,
+            subtotal: sale.subtotal,
+            payment_method: sale.payment_method,
+            status: sale.status,
+            cashier_name: sale.cashier_name,
+            item_count: sale.item_count
+        }));
 
         const report = {
             year: reportYear,
@@ -98,10 +252,21 @@ const getMonthlySalesReport = async (req, res, next) => {
                 average_daily: summary.total_sales / (dailyBreakdown.length || 1),
                 average_transaction: summary.average_transaction
             },
+            comparison: {
+                previous_period: `${prevYear}-${String(prevMonth).padStart(2, '0')}`,
+                previous_revenue: prevMonthSummary.total_sales,
+                previous_transactions: prevMonthSummary.total_transactions,
+                revenue_change_percent: revenueChange,
+                transaction_change_percent: transactionChange
+            },
             daily_breakdown: dailyBreakdown,
             weekly_breakdown: weeklyBreakdown,
-            category_breakdown: categoryBreakdown
+            category_breakdown: categoryBreakdown,
+            sales: sales,
+            individual_sales: individualSalesFormatted
         };
+
+        console.log('[ReportController] Sending report:', JSON.stringify(report, null, 2).substring(0, 500));
 
         return successResponse(res, report);
     } catch (error) {
@@ -116,6 +281,8 @@ const getMonthlySalesReport = async (req, res, next) => {
 const getProductPerformanceReport = async (req, res, next) => {
     try {
         const { startDate, endDate, category_id, limit = 20 } = req.query;
+
+        console.log('[ReportController] Product Performance params:', { startDate, endDate, category_id, limit });
 
         // Get top products
         const products = await Sale.getTopProducts({
@@ -140,12 +307,25 @@ const getProductPerformanceReport = async (req, res, next) => {
             })
         );
 
+        // Format products data for frontend compatibility
+        const productsList = productsWithProfit.map(p => ({
+            name: p.name,
+            sku: p.barcode,
+            quantity_sold: p.total_quantity,
+            revenue: p.total_revenue
+        }));
+
         const report = {
             period: {
                 start: startDate || 'All time',
                 end: endDate || 'Present'
             },
-            products: productsWithProfit
+            products: productsList,
+            summary: {
+                total_products: productsList.length,
+                total_quantity: productsList.reduce((sum, p) => sum + p.quantity_sold, 0),
+                total_revenue: productsList.reduce((sum, p) => sum + p.revenue, 0)
+            }
         };
 
         return successResponse(res, report);
@@ -271,6 +451,8 @@ async function getHourlyBreakdown(date) {
 
 async function getDailyBreakdown(year, month) {
     const db = require('../config/database');
+    console.log('[ReportController] getDailyBreakdown executing with:', { year, month });
+    
     const sql = `
     SELECT 
       DATE(sale_date) as date,

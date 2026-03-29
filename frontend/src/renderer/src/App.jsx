@@ -29,6 +29,9 @@ import UsersPage from './pages/users/UsersPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import ProfilePage from './pages/profile/ProfilePage';
 
+// Context providers
+import { CurrencyProvider } from './context/CurrencyContext';
+
 /**
  * Protected Route Component
  * 
@@ -41,7 +44,7 @@ import ProfilePage from './pages/profile/ProfilePage';
 const ProtectedRoute = ({ children, requiredRole }) => {
     const { isAuthenticated, isLoading, hasMinRole } = useAuth();
 
-    // Show loading spinner while checking authentication status
+    // If auth is still loading, show spinner
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
@@ -68,13 +71,14 @@ const ProtectedRoute = ({ children, requiredRole }) => {
  * 
  * Restricts access to unauthenticated users.
  * Redirects to dashboard if already authenticated.
+ * Shows login immediately.
  * 
  * @param {React.ReactNode} children - Child components to render if not authenticated
  */
 const PublicRoute = ({ children }) => {
     const { isAuthenticated, isLoading } = useAuth();
 
-    // Show loading spinner while checking authentication status
+    // If auth is still loading, show spinner instead of blank screen
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
@@ -83,7 +87,6 @@ const PublicRoute = ({ children }) => {
         );
     }
 
-    // Redirect to dashboard if already authenticated
     if (isAuthenticated) {
         return <Navigate to="/dashboard" replace />;
     }
@@ -101,57 +104,59 @@ const PublicRoute = ({ children }) => {
  */
 function App() {
     return (
-        <Routes>
-            {/* Public authentication routes */}
-            <Route element={<PublicRoute><AuthLayout /></PublicRoute>}>
-                <Route path="/login" element={<LoginPage />} />
-            </Route>
+        <CurrencyProvider>
+            <Routes>
+                {/* Public authentication routes */}
+                <Route element={<PublicRoute><AuthLayout /></PublicRoute>}>
+                    <Route path="/login" element={<LoginPage />} />
+                </Route>
 
-            {/* Protected application routes */}
-            <Route
-                element={
-                    <ProtectedRoute>
-                        <MainLayout />
-                    </ProtectedRoute>
-                }
-            >
-                {/* Main dashboard and navigation */}
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/products" element={<ProductsPage />} />
-                <Route path="/categories" element={<CategoriesPage />} />
-                <Route path="/pos" element={<POSPage />} />
-                
-                {/* Sales routes */}
-                <Route path="/sales" element={<SalesPage />} />
-                <Route path="/sales/:id" element={<SaleDetailPage />} />
-                
-                {/* Inventory management routes */}
-                <Route path="/inventory" element={<InventoryPage />} />
-                <Route path="/suppliers" element={<SuppliersPage />} />
-                <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
-                
-                {/* Reports - accessible to managers and admins */}
-                <Route path="/reports" element={<ReportsPage />} />
-                
-                {/* Admin-only user management */}
+                {/* Protected application routes */}
                 <Route
-                    path="/users"
                     element={
-                        <ProtectedRoute requiredRole="admin">
-                            <UsersPage />
+                        <ProtectedRoute>
+                            <MainLayout />
                         </ProtectedRoute>
                     }
-                />
-                
-                {/* User-specific routes */}
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/profile" element={<ProfilePage />} />
-            </Route>
+                >
+                    {/* Main dashboard and navigation */}
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/products" element={<ProductsPage />} />
+                    <Route path="/categories" element={<CategoriesPage />} />
+                    <Route path="/pos" element={<POSPage />} />
+                    
+                    {/* Sales routes */}
+                    <Route path="/sales" element={<SalesPage />} />
+                    <Route path="/sales/:id" element={<SaleDetailPage />} />
+                    
+                    {/* Inventory management routes */}
+                    <Route path="/inventory" element={<InventoryPage />} />
+                    <Route path="/suppliers" element={<SuppliersPage />} />
+                    <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+                    
+                    {/* Reports - accessible to managers and admins */}
+                    <Route path="/reports" element={<ReportsPage />} />
+                    
+                    {/* Admin-only user management */}
+                    <Route
+                        path="/users"
+                        element={
+                            <ProtectedRoute requiredRole="admin">
+                                <UsersPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    
+                    {/* User-specific routes */}
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/profile" element={<ProfilePage />} />
+                </Route>
 
-            {/* Default redirects */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+                {/* Default redirects */}
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+        </CurrencyProvider>
     );
 }
 

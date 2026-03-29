@@ -9,6 +9,7 @@ import api from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { useCurrency } from '../../context/CurrencyContext';
 
 // Components
 import Modal from '../../components/common/Modal';
@@ -16,6 +17,7 @@ import Modal from '../../components/common/Modal';
 const POSPage = () => {
     const { user } = useAuth();
     const { success, error } = useToast();
+    const { formatPrice, convertPrice, currencySettings } = useCurrency();
     const {
         cart,
         addToCart,
@@ -50,13 +52,15 @@ const POSPage = () => {
                     api.get('/categories')
                 ]);
                 // Map backend field names to frontend expected names
+                // Prices are stored in USD, convert to current currency
                 const productsData = (productsRes.data.data || []).map(item => ({
                     ...item,
                     id: item.id,
                     name: item.name,
                     sku: item.sku,
                     barcode: item.barcode,
-                    price: parseFloat(item.selling_price) || 0,
+                    // Convert price to current currency for display
+                    price: convertPrice(parseFloat(item.selling_price) || 0),
                     stock_quantity: item.quantity_in_stock,
                     min_stock_level: item.reorder_level,
                     category_name: item.category_name,
@@ -74,7 +78,40 @@ const POSPage = () => {
             }
         };
         fetchData();
-    }, [error, refreshCart]);
+    }, [error, refreshCart, convertPrice]);
+
+    // Re-fetch products when currency changes
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                setIsLoading(true);
+                const productsRes = await api.get('/products', { params: { limit: 100, is_active: true } });
+                const productsData = (productsRes.data.data || []).map(item => ({
+                    ...item,
+                    id: item.id,
+                    name: item.name,
+                    sku: item.sku,
+                    barcode: item.barcode,
+                    price: convertPrice(parseFloat(item.selling_price) || 0),
+                    stock_quantity: item.quantity_in_stock,
+                    min_stock_level: item.reorder_level,
+                    category_name: item.category_name,
+                    image_url: item.image_url
+                }));
+                setProducts(productsData);
+                refreshCart(productsData);
+            } catch (err) {
+                console.error('Failed to refresh products on currency change:', err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        // Only refetch if we've already loaded once (indicated by products array having items)
+        if (products.length > 0) {
+            fetchProducts();
+        }
+    }, [currencySettings.exchange_rate]);
 
     // Filter products
     const filteredProducts = products.filter((product) => {
@@ -113,7 +150,11 @@ const POSPage = () => {
 
     // Handle payment
     const handlePayment = async () => {
-        if (parseFloat(amountReceived) < total) {
+        // For card payments, set amount_paid to the total (card processor handles the amount)
+        const effectiveAmountReceived = paymentMethod === 'card' ? total : parseFloat(amountReceived);
+
+        // For cash payments, require sufficient amount
+        if (paymentMethod === 'cash' && effectiveAmountReceived < total) {
             error('Insufficient amount received');
             return;
         }
@@ -134,7 +175,7 @@ const POSPage = () => {
                 })),
                 // Remove subtotal, tax, total_amount, change - backend calculates these
                 payment_method: paymentMethod,
-                amount_paid: parseFloat(amountReceived),  // Map to backend expected field name
+                amount_paid: effectiveAmountReceived,  // For card: auto-set to total; for cash: use received amount
                 discount_amount: discountAmount  // Map to backend expected field name
             };
 
@@ -157,7 +198,7 @@ const POSPage = () => {
         }
     };
 
-    // Print receipt
+    // Print receipt using browser print
     const printReceipt = (sale) => {
         const receiptContent = `
       <html>
@@ -186,18 +227,18 @@ const POSPage = () => {
         ${cart.map((item) => `
           <div class="item">
             <span>${item.name} x${item.quantity}</span>
-            <span>${((parseFloat(item.price) || 0) * item.quantity).toFixed(2)}</span>
+            <span>${formatPrice((parseFloat(item.price) || 0) * item.quantity)}</span>
           </div>
         `).join('')}
         <div class="divider"></div>
-        <div class="item"><span>Subtotal:</span><span>$${subtotal.toFixed(2)}</span></div>
-        ${discountAmount > 0 ? `<div class="item"><span>Discount:</span><span>-$${discountAmount.toFixed(2)}</span></div>` : ''}
-        <div class="item"><span>Tax (10%):</span><span>$${taxAmount.toFixed(2)}</span></div>
-        <div class="item total"><span>Total:</span><span>$${total.toFixed(2)}</span></div>
+        <div class="item"><span>Subtotal:</span><span>${formatPrice(subtotal)}</span></div>
+        ${discountAmount > 0 ? `<div class="item"><span>Discount:</span><span>-${formatPrice(discountAmount)}</span></div>` : ''}
+        <div class="item"><span>Tax (10%):</span><span>${formatPrice(taxAmount)}</span></div>
+        <div class="item total"><span>Total:</span><span>${formatPrice(total)}</span></div>
         <div class="divider"></div>
         <div class="item"><span>Payment:</span><span>${paymentMethod.toUpperCase()}</span></div>
-        <div class="item"><span>Amount Received:</span><span>$${parseFloat(amountReceived).toFixed(2)}</span></div>
-        <div class="item"><span>Change:</span><span>$${Math.max(0, change).toFixed(2)}</span></div>
+        <div class="item"><span>Amount Received:</span><span>${formatPrice(parseFloat(amountReceived))}</span></div>
+        <div class="item"><span>Change:</span><span>${formatPrice(Math.max(0, change))}</span></div>
         <div class="divider"></div>
         <div class="footer">
           <p>Thank you for your purchase!</p>
@@ -207,24 +248,17 @@ const POSPage = () => {
       </html>
     `;
 
-        // Use Electron print if available
-        if (window.electron?.print?.receipt) {
-            window.electron.print.receipt(receiptContent);
-        } else {
-            // Fallback to browser print
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(receiptContent);
-            printWindow.document.close();
-            printWindow.print();
-        }
+        // Use browser print (web environment)
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(receiptContent);
+        printWindow.document.close();
+        printWindow.print();
     };
 
-    // Format currency
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(amount || 0);
+    // Format currency using currency context
+    // Use convertPrice from currency context for actual conversion
+    const convertAndFormat = (amount) => {
+        return formatPrice(amount);
     };
 
     return (
@@ -291,7 +325,7 @@ const POSPage = () => {
                                         {product.stock_quantity} in stock
                                     </p>
                                     <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-1">
-                                        {formatCurrency(product.price)}
+                                        {convertAndFormat(product.price)}
                                     </p>
                                 </button>
                             ))}
@@ -336,7 +370,7 @@ const POSPage = () => {
                                             {item.name}
                                         </h4>
                                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                                            {formatCurrency(parseFloat(item.price) || 0)} each
+                                            {convertAndFormat(parseFloat(item.price) || 0)} each
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -394,21 +428,21 @@ const POSPage = () => {
                     <div className="space-y-2 text-sm">
                         <div className="flex justify-between text-gray-600 dark:text-gray-400">
                             <span>Subtotal</span>
-                            <span>{formatCurrency(subtotal)}</span>
+                            <span>{formatPrice(subtotal)}</span>
                         </div>
                         {discountAmount > 0 && (
                             <div className="flex justify-between text-green-600 dark:text-green-400">
                                 <span>Discount</span>
-                                <span>-{formatCurrency(discountAmount)}</span>
+                                <span>-{formatPrice(discountAmount)}</span>
                             </div>
                         )}
                         <div className="flex justify-between text-gray-600 dark:text-gray-400">
                             <span>Tax (10%)</span>
-                            <span>{formatCurrency(taxAmount)}</span>
+                            <span>{formatPrice(taxAmount)}</span>
                         </div>
                         <div className="flex justify-between text-lg font-bold text-gray-900 dark:text-white pt-2 border-t border-gray-200 dark:border-gray-700">
                             <span>Total</span>
-                            <span>{formatCurrency(total)}</span>
+                            <span>{formatPrice(total)}</span>
                         </div>
                     </div>
 
@@ -418,7 +452,7 @@ const POSPage = () => {
                         disabled={cart.length === 0}
                         className="w-full btn btn-primary py-3 text-lg"
                     >
-                        Pay {formatCurrency(total)}
+                        Pay {formatPrice(total)}
                     </button>
                 </div>
             </div>
@@ -435,7 +469,7 @@ const POSPage = () => {
                     <div className="text-center py-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                         <p className="text-sm text-gray-500 dark:text-gray-400">Total Amount</p>
                         <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                            {formatCurrency(total)}
+                            {formatPrice(total)}
                         </p>
                     </div>
 
@@ -485,7 +519,7 @@ const POSPage = () => {
                             />
                             {parseFloat(amountReceived) >= total && (
                                 <p className="mt-2 text-green-600 dark:text-green-400 font-medium">
-                                    Change: {formatCurrency(Math.max(0, change))}
+                                    Change: {formatPrice(Math.max(0, change))}
                                 </p>
                             )}
                         </div>
@@ -522,7 +556,7 @@ const POSPage = () => {
                         </button>
                         <button
                             onClick={handlePayment}
-                            disabled={paymentMethod === 'cash' && parseFloat(amountReceived) < total}
+                            disabled={paymentMethod === 'cash' ? parseFloat(amountReceived) < total : false}
                             className="flex-1 btn btn-success"
                         >
                             {isProcessing ? 'Processing...' : 'Complete Sale'}

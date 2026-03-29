@@ -8,6 +8,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useCurrency } from '../../context/CurrencyContext';
 
 // Components
 import Pagination from '../../components/common/Pagination';
@@ -55,12 +56,11 @@ const SalesPage = () => {
         fetchSales();
     }, [fetchSales]);
 
-    // Format currency
+    const { formatPrice } = useCurrency();
+    
+    // Format currency using the global currency context
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(amount || 0);
+        return formatPrice(amount || 0);
     };
 
     // Format date
@@ -172,8 +172,12 @@ const SalesPage = () => {
                                     <th>Invoice</th>
                                     <th>Date</th>
                                     <th>Items</th>
+                                    <th>Subtotal</th>
+                                    <th>Tax</th>
                                     <th>Total</th>
                                     <th>Payment</th>
+                                    <th>Amount Received</th>
+                                    <th>Change</th>
                                     <th>Status</th>
                                     <th>Cashier</th>
                                     <th className="text-right">Actions</th>
@@ -193,6 +197,12 @@ const SalesPage = () => {
                                         <td className="text-gray-600 dark:text-gray-300">
                                             {sale.item_count || sale.items?.length || 0} items
                                         </td>
+                                        <td className="text-gray-600 dark:text-gray-300">
+                                            {formatCurrency(sale.subtotal)}
+                                        </td>
+                                        <td className="text-gray-600 dark:text-gray-300">
+                                            {formatCurrency(sale.tax_amount)}
+                                        </td>
                                         <td className="font-semibold text-gray-900 dark:text-white">
                                             {formatCurrency(sale.total_amount)}
                                         </td>
@@ -200,6 +210,12 @@ const SalesPage = () => {
                                             <span className={`badge ${getPaymentBadge(sale.payment_method)}`}>
                                                 {sale.payment_method}
                                             </span>
+                                        </td>
+                                        <td className="text-gray-600 dark:text-gray-300">
+                                            {sale.payment_method === 'cash' ? formatCurrency(sale.amount_paid) : '-'}
+                                        </td>
+                                        <td className="text-gray-600 dark:text-gray-300">
+                                            {sale.payment_method === 'cash' ? formatCurrency(sale.change_amount) : '-'}
                                         </td>
                                         <td>
                                             <span className={`badge ${getStatusBadge(sale.status)}`}>
@@ -210,12 +226,14 @@ const SalesPage = () => {
                                             {sale.cashier_name || '-'}
                                         </td>
                                         <td className="text-right">
-                                            <Link
-                                                to={`/sales/${sale.id}`}
-                                                className="text-blue-600 dark:text-blue-400 hover:underline"
-                                            >
-                                                View
-                                            </Link>
+                                            <div className="flex items-center justify-end gap-3">
+                                                <Link
+                                                    to={`/sales/${sale.id}`}
+                                                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                                                >
+                                                    View Bill
+                                                </Link>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

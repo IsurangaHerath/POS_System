@@ -9,6 +9,7 @@ import api from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { useCurrency } from '../../context/CurrencyContext';
 
 // Components
 import Modal from '../../components/common/Modal';
@@ -18,6 +19,7 @@ import ProductForm from '../../components/products/ProductForm';
 const ProductsPage = () => {
     const { hasMinRole } = useAuth();
     const { success, error } = useToast();
+    const { formatPrice } = useCurrency();
     const { addToCart } = useCart();
 
     const [products, setProducts] = useState([]);
@@ -154,13 +156,6 @@ const ProductsPage = () => {
         }
     };
 
-    // Format currency
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(amount || 0);
-    };
 
     // Get stock status
     const getStockStatus = (quantity, minLevel) => {
@@ -279,7 +274,7 @@ const ProductsPage = () => {
                                             </td>
                                             <td className="text-gray-600 dark:text-gray-300">{product.sku}</td>
                                             <td className="text-gray-600 dark:text-gray-300">{product.category_name || '-'}</td>
-                                            <td className="font-medium text-gray-900 dark:text-white">{formatCurrency(product.price)}</td>
+                                            <td className="font-medium text-gray-900 dark:text-white">{formatPrice(product.price)}</td>
                                             <td className="text-gray-600 dark:text-gray-300">{product.stock_quantity}</td>
                                             <td>
                                                 <span className={`badge ${stockStatus.class}`}>{stockStatus.label}</span>

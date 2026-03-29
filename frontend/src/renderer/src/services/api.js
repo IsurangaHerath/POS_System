@@ -3,7 +3,7 @@
  * 
  * Centralized Axios HTTP client for making API requests.
  * Handles authentication tokens, error handling, and response formatting.
- * Supports both Electron and browser environments.
+ * Optimized for browser/cloud environment.
  */
 
 import axios from 'axios';
@@ -20,17 +20,10 @@ const DEFAULT_API_URL = 'http://localhost:5000/api';
 
 /**
  * Retrieves the API URL based on the runtime environment.
- * Checks for Electron first, then falls back to environment variables.
- * @returns {Promise<string>} The API base URL
+ * Uses environment variables or default.
+ * @returns {string} The API base URL
  */
-const fetchApiUrl = async () => {
-    // Check if running in Electron environment
-    if (window.electron?.getApiUrl) {
-        const apiUrl = await window.electron.getApiUrl();
-        console.log('[API] Getting URL from Electron:', apiUrl);
-        return apiUrl;
-    }
-    
+const getApiUrl = () => {
     // Use Vite environment variable or default
     const apiUrl = import.meta.env.VITE_API_URL || DEFAULT_API_URL;
     console.log('[API] Using VITE_API_URL or default:', apiUrl);
@@ -60,27 +53,22 @@ let currentApiUrl = DEFAULT_API_URL;
 
 /**
  * Interceptor that runs before each request.
+/**
+ * Interceptor that runs before each request.
  * Sets the base URL and attaches authentication token.
  */
 api.interceptors.request.use(
-    async (config) => {
+    (config) => {
         // Update API URL if needed
         if (!currentApiUrl || currentApiUrl === DEFAULT_API_URL) {
-            currentApiUrl = await fetchApiUrl();
+            currentApiUrl = getApiUrl();
         }
         config.baseURL = currentApiUrl;
         
         console.log('[API Request]', config.method?.toUpperCase(), config.baseURL + config.url);
 
-        // Retrieve authentication token
-        let authToken;
-        if (window.electron?.store) {
-            // Electron environment - use secure storage
-            authToken = await window.electron.store.get('auth_token');
-        } else {
-            // Browser environment - use localStorage
-            authToken = localStorage.getItem('auth_token');
-        }
+        // Retrieve authentication token from localStorage (browser environment)
+        const authToken = localStorage.getItem('auth_token');
 
         // Attach token to request if available
         if (authToken) {
@@ -121,14 +109,9 @@ api.interceptors.response.use(
         if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
 
-            // Clear authentication data
-            if (window.electron?.store) {
-                await window.electron.store.delete('auth_token');
-                await window.electron.store.delete('auth_user');
-            } else {
-                localStorage.removeItem('auth_token');
-                localStorage.removeItem('auth_user');
-            }
+            // Clear authentication data from localStorage (browser environment)
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_user');
 
             // Redirect to login page
             window.location.href = '/login';
@@ -153,9 +136,7 @@ api.interceptors.response.use(
 // ============================================
 
 // Initialize API URL on module load
-(async () => {
-    currentApiUrl = await fetchApiUrl();
-})();
+currentApiUrl = getApiUrl();
 
 // ============================================
 // HTTP METHODS

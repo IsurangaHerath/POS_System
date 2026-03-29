@@ -24,15 +24,9 @@ export const ThemeProvider = ({ children }) => {
     useEffect(() => {
         const initTheme = async () => {
             try {
-                // Check if running in Electron
-                if (window.electron?.theme) {
-                    const savedTheme = await window.electron.theme.get();
-                    setTheme(savedTheme || 'light');
-                } else {
-                    // Fallback to localStorage for web
-                    const savedTheme = localStorage.getItem('theme');
-                    setTheme(savedTheme || 'light');
-                }
+                // Get theme from localStorage (browser environment)
+                const savedTheme = localStorage.getItem('theme');
+                setTheme(savedTheme || 'light');
             } catch (error) {
                 console.error('Failed to load theme:', error);
             } finally {
@@ -60,11 +54,8 @@ export const ThemeProvider = ({ children }) => {
         setTheme(newTheme);
 
         try {
-            if (window.electron?.theme) {
-                await window.electron.theme.set(newTheme);
-            } else {
-                localStorage.setItem('theme', newTheme);
-            }
+            // Save theme to localStorage (browser environment)
+            localStorage.setItem('theme', newTheme);
         } catch (error) {
             console.error('Failed to save theme:', error);
         }
@@ -75,11 +66,8 @@ export const ThemeProvider = ({ children }) => {
         setTheme(newTheme);
 
         try {
-            if (window.electron?.theme) {
-                await window.electron.theme.set(newTheme);
-            } else {
-                localStorage.setItem('theme', newTheme);
-            }
+            // Save theme to localStorage (browser environment)
+            localStorage.setItem('theme', newTheme);
         } catch (error) {
             console.error('Failed to save theme:', error);
         }

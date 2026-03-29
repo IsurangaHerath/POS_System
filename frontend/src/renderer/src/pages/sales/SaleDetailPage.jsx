@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useCurrency } from '../../context/CurrencyContext';
 
 const SaleDetailPage = () => {
     const { id } = useParams();
@@ -35,12 +36,11 @@ const SaleDetailPage = () => {
         fetchSale();
     }, [id, error, navigate]);
 
-    // Format currency
+    const { formatPrice } = useCurrency();
+
+    // Format currency using the global currency context
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(amount || 0);
+        return formatPrice(amount || 0);
     };
 
     // Format date
@@ -170,15 +170,15 @@ const SaleDetailPage = () => {
                                 <span>Subtotal</span>
                                 <span>{formatCurrency(sale.subtotal)}</span>
                             </div>
-                            {sale.discount > 0 && (
+                            {sale.discount_amount > 0 && (
                                 <div className="flex justify-between text-green-600 dark:text-green-400">
                                     <span>Discount</span>
-                                    <span>-{formatCurrency(sale.discount)}</span>
+                                    <span>-{formatCurrency(sale.discount_amount)}</span>
                                 </div>
                             )}
                             <div className="flex justify-between text-gray-600 dark:text-gray-400">
                                 <span>Tax</span>
-                                <span>{formatCurrency(sale.tax)}</span>
+                                <span>{formatCurrency(sale.tax_amount)}</span>
                             </div>
                             <div className="flex justify-between text-lg font-bold text-gray-900 dark:text-white pt-2 border-t border-gray-200 dark:border-gray-700">
                                 <span>Total</span>
@@ -188,11 +188,11 @@ const SaleDetailPage = () => {
                                 <>
                                     <div className="flex justify-between text-gray-600 dark:text-gray-400">
                                         <span>Amount Received</span>
-                                        <span>{formatCurrency(sale.amount_received)}</span>
+                                        <span>{formatCurrency(sale.amount_paid)}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-600 dark:text-gray-400">
                                         <span>Change</span>
-                                        <span>{formatCurrency(sale.change)}</span>
+                                        <span>{formatCurrency(sale.change_amount)}</span>
                                     </div>
                                 </>
                             )}

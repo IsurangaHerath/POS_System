@@ -4,15 +4,18 @@
  * Application settings and configuration
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
+import { get, put } from '../../services/api';
 
 const SettingsPage = () => {
     const { theme, setTheme, isDark } = useTheme();
-    const { success } = useToast();
+    const { success, error: showError } = useToast();
     const { user } = useAuth();
+    const { currencies, updateCurrencySettings, fetchCurrencySettings } = useCurrency();
 
     const [settings, setSettings] = useState({
         storeName: 'My Store',
@@ -27,6 +30,35 @@ const SettingsPage = () => {
         autoPrintReceipt: false
     });
 
+    // Currency-specific settings
+    const [currencySettings, setCurrencySettingsLocal] = useState({
+        currency_code: 'USD',
+        exchange_rate: '1',
+        currency_symbol: '$'
+    });
+
+    const [savingCurrency, setSavingCurrency] = useState(false);
+
+    // Load currency settings from backend on mount
+    useEffect(() => {
+        loadCurrencySettings();
+    }, []);
+
+    const loadCurrencySettings = async () => {
+        try {
+            const response = await get('/settings/currency');
+            if (response.data) {
+                setCurrencySettingsLocal({
+                    currency_code: response.data.currency_code || 'USD',
+                    exchange_rate: response.data.exchange_rate || '1',
+                    currency_symbol: response.data.currency_symbol || '$'
+                });
+            }
+        } catch (err) {
+            console.error('Error loading currency settings:', err);
+        }
+    };
+
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         setSettings(prev => ({
@@ -35,13 +67,47 @@ const SettingsPage = () => {
         }));
     };
 
-    const handleSave = () => {
-        // Save settings to electron-store or localStorage
-        if (window.electron?.store) {
-            window.electron.store.set('app_settings', settings);
-        } else {
-            localStorage.setItem('app_settings', JSON.stringify(settings));
+    const handleCurrencyChange = (e) => {
+        const { name, value } = e.target;
+        
+        // Update local state
+        setCurrencySettingsLocal(prev => {
+            const updated = { ...prev, [name]: value };
+            
+            // Auto-update symbol when currency changes
+            if (name === 'currency_code') {
+                const currency = currencies[value];
+                if (currency) {
+                    updated.currency_symbol = currency.symbol;
+                }
+            }
+            
+            return updated;
+        });
+    };
+
+    const handleSaveCurrency = async () => {
+        try {
+            setSavingCurrency(true);
+            const successResult = await updateCurrencySettings(currencySettings);
+            if (successResult) {
+                success('Currency settings saved successfully');
+                // Refresh global currency context
+                fetchCurrencySettings();
+            } else {
+                showError('Failed to save currency settings');
+            }
+        } catch (err) {
+            console.error('Error saving currency:', err);
+            showError('Failed to save currency settings');
+        } finally {
+            setSavingCurrency(false);
         }
+    };
+
+    const handleSave = () => {
+        // Save settings to localStorage (browser environment)
+        localStorage.setItem('app_settings', JSON.stringify(settings));
         success('Settings saved successfully');
     };
 
@@ -53,6 +119,81 @@ const SettingsPage = () => {
                 <p className="text-gray-500 dark:text-gray-400 mt-1">
                     Configure your POS system
                 </p>
+            </div>
+
+            {/* Currency Settings */}
+            <div className="card">
+                <div className="card-header">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Currency Settings</h3>
+                </div>
+                <div className="card-body space-y-4">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Configure your base currency and exchange rates. All product prices will be displayed in the selected currency.
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label className="form-label">Currency</label>
+                            <select
+                                name="currency_code"
+                                value={currencySettings.currency_code}
+                                onChange={handleCurrencyChange}
+                                className="form-input"
+                            >
+                                {Object.values(currencies).map(currency => (
+                                    <option key={currency.code} value={currency.code}>
+                                        {currency.code} ({currency.symbol}) - {currency.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label className="form-label">Exchange Rate (per 1 USD)</label>
+                            <input
+                                type="number"
+                                name="exchange_rate"
+                                value={currencySettings.exchange_rate}
+                                onChange={handleCurrencyChange}
+                                min="0.01"
+                                step="0.01"
+                                className="form-input"
+                                placeholder="e.g., 320 for LKR"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label className="form-label">Currency Symbol</label>
+                            <input
+                                type="text"
+                                name="currency_symbol"
+                                value={currencySettings.currency_symbol}
+                                onChange={handleCurrencyChange}
+                                className="form-input"
+                                placeholder="e.g., $ or Rs"
+                                maxLength={5}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                        <p className="text-sm text-blue-800 dark:text-blue-200">
+                            <strong>Current Display:</strong> {currencySettings.currency_symbol}1.00 = {currencySettings.currency_symbol}{currencySettings.exchange_rate}
+                            <br />
+                            Example: A product costing $10.00 will display as {currencySettings.currency_symbol}{(10 * parseFloat(currencySettings.exchange_rate || 1)).toFixed(2)}
+                        </p>
+                    </div>
+
+                    <div className="flex justify-end">
+                        <button 
+                            onClick={handleSaveCurrency} 
+                            className="btn btn-primary"
+                            disabled={savingCurrency}
+                        >
+                            {savingCurrency ? 'Saving...' : 'Save Currency Settings'}
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {/* Appearance */}
@@ -174,20 +315,6 @@ const SettingsPage = () => {
                                 className="form-input"
                                 disabled={!settings.taxEnabled}
                             />
-                        </div>
-                        <div>
-                            <label className="form-label">Currency</label>
-                            <select
-                                name="currency"
-                                value={settings.currency}
-                                onChange={handleChange}
-                                className="form-input"
-                            >
-                                <option value="USD">USD ($)</option>
-                                <option value="EUR">EUR (€)</option>
-                                <option value="GBP">GBP (£)</option>
-                                <option value="LKR">LKR (Rs)</option>
-                            </select>
                         </div>
                     </div>
                 </div>

@@ -79,7 +79,14 @@ INSERT INTO settings (setting_key, setting_value, setting_type, description) VAL
 ('store_name', 'POS Demo Store', 'string', 'Store display name'),
 ('store_address', '123 Main Street, City', 'string', 'Store address'),
 ('store_phone', '+1-555-0000', 'string', 'Store phone number'),
-('currency', 'USD', 'string', 'Default currency code'),
+('currency_code', 'USD', 'string', 'Default currency code'),
+('currency_symbol', '
+
+-- =============================================
+-- Seed Data Complete
+-- =============================================
+, 'string', 'Currency symbol'),
+('exchange_rate', '1', 'number', 'Exchange rate from USD'),
 ('tax_rate', '10', 'number', 'Default tax rate percentage'),
 ('receipt_footer', 'Thank you for shopping with us!', 'string', 'Receipt footer message');
 

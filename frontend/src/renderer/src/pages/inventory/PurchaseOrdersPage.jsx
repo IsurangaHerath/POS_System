@@ -8,6 +8,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 
 // Components
 import Modal from '../../components/common/Modal';
@@ -147,12 +148,11 @@ const PurchaseOrdersPage = () => {
         return badges[status] || 'badge-gray';
     };
 
-    // Format currency
+    const { formatPrice } = useCurrency();
+
+    // Format currency using global currency context
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD'
-        }).format(amount || 0);
+        return formatPrice(amount || 0);
     };
 
     // Format date
