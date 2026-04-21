@@ -86,6 +86,9 @@ const getSaleById = async (request, response, next) => {
  * Body: items, payment_method, amount_paid, discount_amount, notes
  */
 const createSale = async (request, response, next) => {
+    // Begin database transaction
+    const tx = await database.beginTransaction();
+    
     try {
         const { 
             items, 
@@ -102,102 +105,101 @@ const createSale = async (request, response, next) => {
             throw new ValidationError('At least one item is required');
         }
 
-        // Begin database transaction
-        const transactionConnection = await database.beginTransaction();
+        let subtotal = 0;
+        let totalTax = 0;
+        const saleItemList = [];
 
-        try {
-            let subtotal = 0;
-            let totalTax = 0;
-            const saleItemList = [];
+        // Process each item in the sale
+        for (const item of items) {
+            // Lock product row to prevent race conditions during stock check/update
+            const product = await Product.findByIdForUpdate(item.product_id, tx);
 
-            // Process each item in the sale
-            for (const item of items) {
-                const product = await Product.findById(item.product_id);
-
-                // Validate product exists
-                if (!product) {
-                    throw new NotFoundError(`Product with ID ${item.product_id} not found`);
-                }
-
-                // Validate sufficient stock
-                if (product.quantity_in_stock < item.quantity) {
-                    throw new ValidationError(
-                        `Insufficient stock for ${product.name}. Available: ${product.quantity_in_stock}`
-                    );
-                }
-
-                // Calculate item amounts
-                const itemSubtotal = product.selling_price * item.quantity;
-                const itemTax = (itemSubtotal * (product.tax_rate || 0)) / 100;
-                const itemDiscount = item.discount || 0;
-
-                // Accumulate totals
-                subtotal += itemSubtotal;
-                totalTax += itemTax;
-
-                // Build sale item record
-                saleItemList.push({
-                    product_id: product.id,
-                    product_name: product.name,
-                    product_barcode: product.barcode,
-                    unit_price: product.selling_price,
-                    quantity: item.quantity,
-                    subtotal: itemSubtotal,
-                    discount: itemDiscount,
-                    tax_amount: itemTax
-                });
+            // Validate product exists
+            if (!product) {
+                throw new NotFoundError(`Product with ID ${item.product_id} not found`);
             }
 
-            // Calculate final amounts
-            const totalAmount = subtotal + totalTax - discount_amount;
-            const changeAmount = amount_paid - totalAmount;
-
-            // Generate unique invoice number
-            const invoiceNumber = await Sale.generateInvoiceNumber();
-
-            // Create the sale record
-            const saleId = await Sale.create({
-                invoice_number: invoiceNumber,
-                user_id: userId,
-                subtotal,
-                tax_amount: totalTax,
-                discount_amount,
-                total_amount: totalAmount,
-                payment_method,
-                amount_paid,
-                change_amount: changeAmount > 0 ? changeAmount : 0,
-                notes
-            });
-
-            // Create sale items and update inventory
-            for (const saleItem of saleItemList) {
-                await Sale.createItem(saleId, saleItem);
-                await Product.updateStock(saleItem.product_id, -saleItem.quantity);
-
-                // Log inventory change
-                await Sale.logInventoryChange(
-                    saleItem.product_id,
-                    -saleItem.quantity,
-                    saleId,
-                    'sale',
-                    userId
+            // Validate sufficient stock
+            if (product.quantity_in_stock < item.quantity) {
+                throw new ValidationError(
+                    `Insufficient stock for ${product.name}. Available: ${product.quantity_in_stock}`
                 );
             }
 
-            // Commit the transaction
-            await database.commitTransaction(transactionConnection);
+            // Calculate item amounts
+            const itemSubtotal = product.selling_price * item.quantity;
+            const itemTax = (itemSubtotal * (product.tax_rate || 0)) / 100;
+            const itemDiscount = item.discount || 0;
 
-            const completedSale = await Sale.findByIdWithItems(saleId);
+            // Accumulate totals
+            subtotal += itemSubtotal;
+            totalTax += itemTax;
 
-            logger.info(`Sale created: ${invoiceNumber} by ${request.user.username}`);
-
-            return createdResponse(response, completedSale, 'Sale completed successfully');
-        } catch (transactionError) {
-            // Rollback on any error
-            await database.rollbackTransaction(transactionConnection);
-            throw transactionError;
+            // Build sale item record
+            saleItemList.push({
+                product_id: product.id,
+                product_name: product.name,
+                product_barcode: product.barcode,
+                unit_price: product.selling_price,
+                quantity: item.quantity,
+                subtotal: itemSubtotal,
+                discount: itemDiscount,
+                tax_amount: itemTax
+            });
         }
+
+        // Calculate final amounts
+        const totalAmount = subtotal + totalTax - discount_amount;
+        const changeAmount = amount_paid - totalAmount;
+
+        // Generate unique invoice number
+        const invoiceNumber = await Sale.generateInvoiceNumber(tx);
+
+        // Create the sale record
+        const saleId = await Sale.create({
+            invoice_number: invoiceNumber,
+            user_id: userId,
+            subtotal,
+            tax_amount: totalTax,
+            discount_amount,
+            total_amount: totalAmount,
+            payment_method,
+            amount_paid,
+            change_amount: changeAmount > 0 ? changeAmount : 0,
+            notes
+        }, tx);
+
+        // Create sale items and update inventory
+        for (const saleItem of saleItemList) {
+            await Sale.createItem(saleId, saleItem, tx);
+            
+            // Handle stock update in application logic for better control
+            // NOTE: Ensure after_sale_item_insert trigger is removed from DB to avoid double decrement
+            await Product.updateStock(saleItem.product_id, -saleItem.quantity, tx);
+
+            // Log inventory change
+            await Sale.logInventoryChange(
+                saleItem.product_id,
+                -saleItem.quantity,
+                saleId,
+                'sale',
+                userId,
+                null,
+                tx
+            );
+        }
+
+        // Commit the transaction
+        await database.commitTransaction(tx);
+
+        const completedSale = await Sale.findByIdWithItems(saleId);
+
+        logger.info(`Sale created: ${invoiceNumber} by ${request.user.username}`);
+
+        return createdResponse(response, completedSale, 'Sale completed successfully');
     } catch (error) {
+        // Rollback on any error
+        await database.rollbackTransaction(tx);
         next(error);
     }
 };
@@ -209,11 +211,14 @@ const createSale = async (request, response, next) => {
  * Body: reason
  */
 const voidSale = async (request, response, next) => {
+    // Begin database transaction
+    const tx = await database.beginTransaction();
+    
     try {
         const { id } = request.params;
         const { reason } = request.body;
 
-        const existingSale = await Sale.findById(id);
+        const existingSale = await Sale.findById(id, tx);
         
         if (!existingSale) {
             throw new NotFoundError('Sale not found');
@@ -223,46 +228,40 @@ const voidSale = async (request, response, next) => {
             throw new ConflictError('Sale is already voided');
         }
 
-        // Begin database transaction
-        const transactionConnection = await database.beginTransaction();
+        // Mark sale as voided
+        await Sale.voidSale(id, tx);
 
-        try {
-            // Mark sale as voided
-            await Sale.voidSale(id);
+        // Restore inventory for each item
+        const saleItems = await Sale.getSaleItems(id, tx);
+        for (const item of saleItems) {
+            await Product.updateStock(item.product_id, item.quantity, tx);
 
-            // Restore inventory for each item
-            const saleItems = await Sale.getSaleItems(id);
-            for (const item of saleItems) {
-                await Product.updateStock(item.product_id, item.quantity);
-
-                // Log inventory restoration
-                await Sale.logInventoryChange(
-                    item.product_id,
-                    item.quantity,
-                    id,
-                    'return',
-                    request.user.id,
-                    `Voided sale: ${reason}`
-                );
-            }
-
-            // Commit the transaction
-            await database.commitTransaction(transactionConnection);
-
-            logger.info(
-                `Sale voided: ${existingSale.invoice_number} by ${request.user.username}. Reason: ${reason}`
+            // Log inventory restoration
+            await Sale.logInventoryChange(
+                item.product_id,
+                item.quantity,
+                id,
+                'return',
+                request.user.id,
+                `Voided sale: ${reason}`,
+                tx
             );
-
-            return successResponse(
-                response, 
-                { id, status: 'voided' }, 
-                'Sale voided successfully'
-            );
-        } catch (transactionError) {
-            await database.rollbackTransaction(transactionConnection);
-            throw transactionError;
         }
+
+        // Commit the transaction
+        await database.commitTransaction(tx);
+
+        logger.info(
+            `Sale voided: ${existingSale.invoice_number} by ${request.user.username}. Reason: ${reason}`
+        );
+
+        return successResponse(
+            response, 
+            { id, status: 'voided' }, 
+            'Sale voided successfully'
+        );
     } catch (error) {
+        await database.rollbackTransaction(tx);
         next(error);
     }
 };

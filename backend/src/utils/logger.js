@@ -9,9 +9,11 @@ const winston = require('winston');
 const path = require('path');
 const fs = require('fs');
 
-// Ensure logs directory exists
+// Ensure logs directory exists (Only if not in production/cloud)
+const IS_CLOUD = process.env.NETLIFY || process.env.NODE_ENV === 'production';
 const logsDirectory = path.join(__dirname, '../../logs');
-if (!fs.existsSync(logsDirectory)) {
+
+if (!IS_CLOUD && !fs.existsSync(logsDirectory)) {
     fs.mkdirSync(logsDirectory, { recursive: true });
 }
 
@@ -66,17 +68,18 @@ const consoleLogFormat = winston.format.combine(
 // LOGGER CONFIGURATION
 // ============================================
 
-const logger = winston.createLogger({
-    level: process.env.LOG_LEVEL || 'info',
-    format: fileLogFormat,
-    transports: [
-        // Console transport for development
-        new winston.transports.Console({
-            format: consoleLogFormat,
-            handleExceptions: true,
-            handleRejections: true
-        }),
-        // Combined log file - all levels
+const transports = [
+    // Console transport for all environments
+    new winston.transports.Console({
+        format: consoleLogFormat,
+        handleExceptions: true,
+        handleRejections: true
+    })
+];
+
+// Add file transports only if NOT in cloud environment
+if (!IS_CLOUD) {
+    transports.push(
         new winston.transports.File({
             filename: path.join(logsDirectory, 'combined.log'),
             handleExceptions: true,
@@ -84,7 +87,6 @@ const logger = winston.createLogger({
             maxsize: 5242880, // 5MB
             maxFiles: 5
         }),
-        // Error log file - errors only
         new winston.transports.File({
             filename: path.join(logsDirectory, 'error.log'),
             level: 'error',
@@ -93,7 +95,13 @@ const logger = winston.createLogger({
             maxsize: 5242880, // 5MB
             maxFiles: 5
         })
-    ],
+    );
+}
+
+const logger = winston.createLogger({
+    level: process.env.LOG_LEVEL || 'info',
+    format: fileLogFormat,
+    transports: transports,
     exitOnError: false
 });
 

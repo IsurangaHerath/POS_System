@@ -2,7 +2,7 @@ const db = require('../config/database');
 const logger = require('../utils/logger');
 
 class Product {
-    static async create(productData) {
+    static async create(productData, tx = null) {
         const {
             name,
             barcode = null,
@@ -29,18 +29,19 @@ class Product {
         const result = await db.query(sql, [
             name, barcode, sku, category_id, cost_price, selling_price,
             quantity_in_stock, reorder_level, unit, description, image_url, tax_rate
-        ]);
+        ], tx);
 
         const productId = result.insertId;
         await db.query(
             'INSERT INTO inventory (product_id, quantity_available, quantity_reserved, quantity_ordered) VALUES (?, ?, 0, 0)',
-            [productId, quantity_in_stock]
+            [productId, quantity_in_stock],
+            tx
         );
 
         return productId;
     }
 
-    static async findById(id) {
+    static async findById(id, tx = null) {
         const sql = `
       SELECT p.*, c.name as category_name,
         i.quantity_available, i.quantity_reserved, i.quantity_ordered,
@@ -55,7 +56,7 @@ class Product {
       WHERE p.id = ?
     `;
 
-        return db.getOne(sql, [id]);
+        return db.getOne(sql, [id], tx);
     }
 
     static async findByBarcode(barcode) {
@@ -225,17 +226,28 @@ class Product {
         return db.getMany(sql);
     }
 
-    static async updateStock(id, quantity) {
+    static async findByIdForUpdate(id, tx) {
+        const sql = `
+      SELECT id, name, quantity_in_stock, selling_price, tax_rate, barcode
+      FROM products 
+      WHERE id = ? 
+      FOR UPDATE
+    `;
+        return db.getOne(sql, [id], tx);
+    }
+
+    static async updateStock(id, quantity, tx = null) {
         const sql = `
       UPDATE products 
       SET quantity_in_stock = quantity_in_stock + ?
       WHERE id = ?
     `;
-        const result = await db.query(sql, [quantity, id]);
+        const result = await db.query(sql, [quantity, id], tx);
 
         await db.query(
             'UPDATE inventory SET quantity_available = quantity_available + ?, updated_at = CURRENT_TIMESTAMP WHERE product_id = ?',
-            [quantity, id]
+            [quantity, id],
+            tx
         );
 
         return result.affectedRows > 0;

@@ -66,8 +66,17 @@ const register = async (req, res, next) => {
 const login = async (req, res, next) => {
     try {
         const { username, password } = req.body;
+        
+        logger.info(`[AUTH] Login attempt for username: ${username}`);
+        logger.info(`[AUTH] Request body: ${JSON.stringify({ ...req.body, password: '[HIDDEN]' })}`);
 
+        // Find user by username or email
         const user = await User.findByUsernameOrEmail(username);
+        
+        logger.info(`[AUTH] User lookup result: ${user ? 'User found' : 'User NOT found'}`);
+        if (user) {
+            logger.info(`[AUTH] Found user details: id=${user.id}, username=${user.username}, is_active=${user.is_active}`);
+        }
 
         if (!user) {
             logger.warn(`Login failed - invalid username: ${username}`);
@@ -75,11 +84,13 @@ const login = async (req, res, next) => {
         }
 
         if (!user.is_active) {
-            logger.warn(`Login attempt on inactive account: ${username}`);
+            logger.warn(`[AUTH] Login attempt on inactive account: ${username}`);
             throw new AuthenticationError('Account is deactivated. Please contact administrator.');
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+        
+        logger.info(`[AUTH] Password verification result: ${isPasswordValid ? 'SUCCESS' : 'FAILED'}`);
 
         if (!isPasswordValid) {
             logger.warn(`Wrong password for user: ${username}`);

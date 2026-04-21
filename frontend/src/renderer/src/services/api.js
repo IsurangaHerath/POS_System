@@ -102,7 +102,8 @@ api.interceptors.response.use(
             '[API Error]', 
             originalRequest.url, 
             error.response?.status, 
-            error.message
+            error.message,
+            error.response?.data
         );
 
         // Handle 401 Unauthorized - clear auth and redirect to login

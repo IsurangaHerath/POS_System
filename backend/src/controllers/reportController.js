@@ -8,6 +8,7 @@ const Sale = require('../models/Sale');
 const Product = require('../models/Product');
 const { successResponse } = require('../utils/response');
 const logger = require('../utils/logger');
+const db = require('../config/database');
 
 /**
  * Get daily sales report
@@ -58,7 +59,6 @@ const getDailySalesReport = async (req, res, next) => {
         });
 
         // Get actual sale records for this day
-        const db = require('../config/database');
         const salesSql = `
             SELECT 
                 DATE(sale_date) as date,
@@ -169,15 +169,32 @@ const getMonthlySalesReport = async (req, res, next) => {
         }
 
         console.log('[ReportController] Parsed year/month:', { reportYear, reportMonth });
+        console.log('[ReportController] Calling Sale.getMonthlySummary with params:', [reportYear, reportMonth]);
 
         // Get current month summary
-        const summary = await Sale.getMonthlySummary(reportYear, reportMonth);
+        let summary;
+        try {
+            summary = await Sale.getMonthlySummary(reportYear, reportMonth);
+            console.log('[ReportController] getMonthlySummary result:', summary);
+        } catch (summaryError) {
+            console.error('[ReportController] Error in getMonthlySummary:', summaryError.message, summaryError.stack);
+            throw new Error(`Failed to get monthly summary: ${summaryError.message}`);
+        }
 
         // Get previous month summary for comparison
         let prevMonthSummary = null;
         let prevYear = reportMonth === 1 ? reportYear - 1 : reportYear;
         let prevMonth = reportMonth === 1 ? 12 : reportMonth - 1;
-        prevMonthSummary = await Sale.getMonthlySummary(prevYear, prevMonth);
+        
+        console.log('[ReportController] Calling getMonthlySummary for previous month:', { prevYear, prevMonth });
+        
+        try {
+            prevMonthSummary = await Sale.getMonthlySummary(prevYear, prevMonth);
+            console.log('[ReportController] Previous month summary result:', prevMonthSummary);
+        } catch (prevError) {
+            console.error('[ReportController] Error in getMonthlySummary for previous month:', prevError.message);
+            prevMonthSummary = { total_sales: 0, total_transactions: 0 };
+        }
 
         // Calculate comparison percentages
         const revenueChange = prevMonthSummary.total_sales > 0 
@@ -435,7 +452,6 @@ const exportToPDF = async (req, res, next) => {
 
 // Helper functions
 async function getHourlyBreakdown(date) {
-    const db = require('../config/database');
     const sql = `
     SELECT 
       HOUR(sale_date) as hour,
@@ -450,7 +466,6 @@ async function getHourlyBreakdown(date) {
 }
 
 async function getDailyBreakdown(year, month) {
-    const db = require('../config/database');
     console.log('[ReportController] getDailyBreakdown executing with:', { year, month });
     
     const sql = `
@@ -467,7 +482,8 @@ async function getDailyBreakdown(year, month) {
 }
 
 async function getWeeklyBreakdown(year, month) {
-    const db = require('../config/database');
+    console.log('[ReportController] getWeeklyBreakdown executing with:', { year, month });
+    
     const sql = `
     SELECT 
       WEEK(sale_date) - WEEK(DATE_FORMAT(sale_date, '%Y-%m-01')) + 1 as week,
@@ -478,11 +494,18 @@ async function getWeeklyBreakdown(year, month) {
     GROUP BY WEEK(sale_date)
     ORDER BY week
   `;
-    return db.getMany(sql, [year, month]);
+    console.log('[ReportController] getWeeklyBreakdown SQL:', sql, 'params:', [year, month]);
+    try {
+        const result = await db.getMany(sql, [year, month]);
+        console.log('[ReportController] getWeeklyBreakdown result:', result);
+        return result;
+    } catch (error) {
+        console.error('[ReportController] getWeeklyBreakdown ERROR:', error.message, error.stack);
+        throw new Error(`getWeeklyBreakdown failed: ${error.message}`);
+    }
 }
 
 async function getCategoryBreakdown(year, month) {
-    const db = require('../config/database');
     const sql = `
     SELECT 
       c.name as category_name,

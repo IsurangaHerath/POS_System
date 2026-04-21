@@ -52,62 +52,75 @@ const DashboardPage = () => {
      * Fetches all dashboard data from the API
      * Uses Promise.all for parallel requests with error handling
      */
+    const fetchDashboardData = async () => {
+        try {
+            setIsLoading(true);
+
+            // Fetch all dashboard components in parallel
+            const [
+                statsResponse,
+                topProductsResponse,
+                lowStockResponse,
+                recentSalesResponse
+            ] = await Promise.all([
+                // Statistics endpoint
+                api.get('/dashboard/summary').catch(() => ({ 
+                    data: { data: dashboardData.stats } 
+                })),
+                // Top products endpoint
+                api.get('/dashboard/top-products').catch(() => ({ 
+                    data: { data: [] } 
+                })),
+                // Low stock alert endpoint
+                api.get('/dashboard/low-stock').catch(() => ({ 
+                    data: { data: [] } 
+                })),
+                // Recent sales endpoint
+                api.get('/dashboard/recent-sales').catch(() => ({ 
+                    data: { data: [] } 
+                }))
+            ]);
+
+            // Map backend response to frontend expected format
+            const summaryData = statsResponse.data.data;
+            const mappedStats = summaryData ? {
+                todaySales: summaryData.today?.total_sales || 0,
+                todayOrders: summaryData.today?.transactions || 0,
+                monthlyRevenue: summaryData.month?.total_sales || 0,
+                monthlyOrders: summaryData.month?.transactions || 0,
+                totalProducts: summaryData.inventory?.total_products || 0,
+                lowStockCount: summaryData.inventory?.low_stock_count || 0
+            } : dashboardData.stats;
+
+            // Update state with fetched data
+            setDashboardData({
+                stats: mappedStats,
+                topProducts: topProductsResponse.data.data || [],
+                lowStockProducts: lowStockResponse.data.data || [],
+                recentSales: recentSalesResponse.data.data || []
+            });
+        } catch (error) {
+            console.error('Failed to fetch dashboard data:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    /**
+     * Set up real-time polling for dashboard data
+     * Polls every 30 seconds to keep data fresh
+     */
     useEffect(() => {
-        const fetchDashboardData = async () => {
-            try {
-                setIsLoading(true);
-
-                // Fetch all dashboard components in parallel
-                const [
-                    statsResponse,
-                    topProductsResponse,
-                    lowStockResponse,
-                    recentSalesResponse
-                ] = await Promise.all([
-                    // Statistics endpoint
-                    api.get('/dashboard/summary').catch(() => ({ 
-                        data: { data: dashboardData.stats } 
-                    })),
-                    // Top products endpoint
-                    api.get('/dashboard/top-products').catch(() => ({ 
-                        data: { data: [] } 
-                    })),
-                    // Low stock alert endpoint
-                    api.get('/dashboard/low-stock').catch(() => ({ 
-                        data: { data: [] } 
-                    })),
-                    // Recent sales endpoint
-                    api.get('/dashboard/recent-sales').catch(() => ({ 
-                        data: { data: [] } 
-                    }))
-                ]);
-
-                // Map backend response to frontend expected format
-                const summaryData = statsResponse.data.data;
-                const mappedStats = summaryData ? {
-                    todaySales: summaryData.today?.total_sales || 0,
-                    todayOrders: summaryData.today?.transactions || 0,
-                    monthlyRevenue: summaryData.month?.total_sales || 0,
-                    monthlyOrders: summaryData.month?.transactions || 0,
-                    totalProducts: summaryData.inventory?.total_products || 0,
-                    lowStockCount: summaryData.inventory?.low_stock_count || 0
-                } : dashboardData.stats;
-
-                // Update state with fetched data
-                setDashboardData({
-                    stats: mappedStats,
-                    topProducts: topProductsResponse.data.data || [],
-                    lowStockProducts: lowStockResponse.data.data || [],
-                    recentSales: recentSalesResponse.data.data || []
-                });
-            } catch (error) {
-                console.error('Failed to fetch dashboard data:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
+        // Initial fetch
         fetchDashboardData();
+
+        // Set up polling interval (30 seconds)
+        const pollInterval = setInterval(() => {
+            fetchDashboardData();
+        }, 30000);
+
+        // Cleanup on unmount
+        return () => clearInterval(pollInterval);
     }, []);
 
     /**

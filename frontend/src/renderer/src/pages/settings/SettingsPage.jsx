@@ -67,23 +67,37 @@ const SettingsPage = () => {
         }));
     };
 
-    const handleCurrencyChange = (e) => {
+    const handleCurrencyChange = async (e) => {
         const { name, value } = e.target;
         
         // Update local state
-        setCurrencySettingsLocal(prev => {
-            const updated = { ...prev, [name]: value };
-            
-            // Auto-update symbol when currency changes
-            if (name === 'currency_code') {
-                const currency = currencies[value];
-                if (currency) {
-                    updated.currency_symbol = currency.symbol;
-                }
+        let updatedSettings = { ...currencySettings, [name]: value };
+        
+        // Auto-update symbol when currency changes
+        if (name === 'currency_code') {
+            const currency = currencies[value];
+            if (currency) {
+                updatedSettings.currency_symbol = currency.symbol;
             }
             
-            return updated;
-        });
+            // Auto-save when currency code changes
+            setCurrencySettingsLocal(updatedSettings);
+            try {
+                setSavingCurrency(true);
+                await updateCurrencySettings({
+                    currency_code: updatedSettings.currency_code,
+                    currency_symbol: updatedSettings.currency_symbol,
+                    exchange_rate: updatedSettings.exchange_rate
+                });
+                success(`Currency changed to ${value}`);
+            } catch (err) {
+                showError('Failed to auto-save currency');
+            } finally {
+                setSavingCurrency(false);
+            }
+        } else {
+            setCurrencySettingsLocal(updatedSettings);
+        }
     };
 
     const handleSaveCurrency = async () => {

@@ -58,13 +58,15 @@ const ProductsPage = () => {
             const response = await api.get('/products', { params });
 
             // Map backend field names to frontend expected names
+            // Store original USD prices, formatPrice will handle conversion when displayed
             const productsData = (response.data.data || []).map(item => ({
                 ...item,
                 id: item.id,
                 name: item.name,
                 sku: item.sku,
                 barcode: item.barcode,
-                price: item.selling_price,
+                // Keep original USD price, formatPrice will handle conversion
+                price: parseFloat(item.selling_price) || 0,
                 stock_quantity: item.quantity_in_stock,
                 min_stock_level: item.reorder_level,
                 category_name: item.category_name,

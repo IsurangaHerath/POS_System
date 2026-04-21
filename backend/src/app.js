@@ -18,6 +18,7 @@ const { validationResult } = require('express-validator');
 const logger = require('./utils/logger');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const { validationError } = require('./utils/response');
+const auditLog = require('./middleware/auditLog');
 
 // Route imports
 const authRoutes = require('./routes/auth.routes');
@@ -134,6 +135,13 @@ app.use(express.json({ limit: jsonLimit }));
 // Parse URL-encoded bodies with extended parsing
 const urlencodedLimit = process.env.URLENCODED_BODY_LIMIT || '10mb';
 app.use(express.urlencoded({ extended: true, limit: urlencodedLimit }));
+
+// ============================================
+// AUDIT LOGGING MIDDLEWARE
+// ============================================
+
+// Log data-modifying requests (placed after body parsing)
+app.use(auditLog);
 
 // ============================================
 // LOGGING MIDDLEWARE

@@ -165,6 +165,10 @@ export const AuthProvider = ({ children }) => {
             console.log('[Auth] Login response data:', response.data);
 
             const responseData = response.data.data;
+            
+            console.log('[Auth] responseData.tokens exists:', !!responseData.tokens);
+            console.log('[Auth] responseData.user exists:', !!responseData.user);
+            console.log('[Auth] responseData.token exists:', !!responseData.token);
             let userData, token;
             
             if (responseData.tokens) {

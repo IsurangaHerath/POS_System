@@ -83,7 +83,7 @@ const updateSetting = async (req, res, next) => {
  */
 const getCurrencySettings = async (req, res, next) => {
     try {
-        const sql = 'SELECT * FROM settings WHERE setting_key LIKE "currency_%"';
+        const sql = 'SELECT * FROM settings WHERE setting_key IN ("currency_code", "currency_symbol", "exchange_rate")';
         const settings = await db.getMany(sql);
 
         // Convert array to object

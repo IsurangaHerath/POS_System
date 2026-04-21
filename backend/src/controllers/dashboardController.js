@@ -36,22 +36,22 @@ const getSummary = async (req, res, next) => {
 
         const summary = {
             today: {
-                total_sales: todaySales.total_sales,
-                transactions: todaySales.total_transactions,
-                cash_sales: todaySales.cash_sales,
-                card_sales: todaySales.card_sales
+                total_sales: parseFloat(todaySales?.total_sales || 0),
+                transactions: todaySales?.total_transactions || 0,
+                cash_sales: parseFloat(todaySales?.cash_sales || 0),
+                card_sales: parseFloat(todaySales?.card_sales || 0)
             },
             month: {
-                total_sales: monthlySales.total_sales,
-                transactions: monthlySales.total_transactions,
-                revenue_growth: 0 // Would need previous month data
+                total_sales: parseFloat(monthlySales?.total_sales || 0),
+                transactions: monthlySales?.total_transactions || 0,
+                revenue_growth: 0 
             },
             inventory: {
-                total_products: totalProducts,
-                low_stock_count: lowStockCount,
-                out_of_stock_count: outOfStockCount
+                total_products: totalProducts || 0,
+                low_stock_count: lowStockCount || 0,
+                out_of_stock_count: outOfStockCount || 0
             },
-            pending_orders: pendingOrders
+            pending_orders: pendingOrders || 0
         };
 
         return successResponse(res, summary);
@@ -236,12 +236,12 @@ const getRecentSales = async (req, res, next) => {
     try {
         const { limit = 10 } = req.query;
 
-        const sales = await Sale.findAll({
+        const { sales: salesData } = await Sale.findAll({
             limit: parseInt(limit),
             status: 'completed'
         });
 
-        const recentSales = sales.map(s => ({
+        const recentSales = salesData.map(s => ({
             id: s.id,
             invoice_number: s.invoice_number,
             total_amount: s.total_amount,

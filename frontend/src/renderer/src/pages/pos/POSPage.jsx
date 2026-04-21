@@ -52,15 +52,15 @@ const POSPage = () => {
                     api.get('/categories')
                 ]);
                 // Map backend field names to frontend expected names
-                // Prices are stored in USD, convert to current currency
+                // Prices are stored in USD, will be converted by formatPrice when displayed
                 const productsData = (productsRes.data.data || []).map(item => ({
                     ...item,
                     id: item.id,
                     name: item.name,
                     sku: item.sku,
                     barcode: item.barcode,
-                    // Convert price to current currency for display
-                    price: convertPrice(parseFloat(item.selling_price) || 0),
+                    // Keep original USD price, formatPrice will handle conversion
+                    price: parseFloat(item.selling_price) || 0,
                     stock_quantity: item.quantity_in_stock,
                     min_stock_level: item.reorder_level,
                     category_name: item.category_name,
@@ -78,7 +78,7 @@ const POSPage = () => {
             }
         };
         fetchData();
-    }, [error, refreshCart, convertPrice]);
+    }, [error, refreshCart]);
 
     // Re-fetch products when currency changes
     useEffect(() => {
@@ -92,7 +92,8 @@ const POSPage = () => {
                     name: item.name,
                     sku: item.sku,
                     barcode: item.barcode,
-                    price: convertPrice(parseFloat(item.selling_price) || 0),
+                    // Keep original USD price, formatPrice will handle conversion
+                    price: parseFloat(item.selling_price) || 0,
                     stock_quantity: item.quantity_in_stock,
                     min_stock_level: item.reorder_level,
                     category_name: item.category_name,
@@ -111,7 +112,7 @@ const POSPage = () => {
         if (products.length > 0) {
             fetchProducts();
         }
-    }, [currencySettings.exchange_rate]);
+    }, [currencySettings.exchange_rate, products.length]);
 
     // Filter products
     const filteredProducts = products.filter((product) => {
@@ -405,23 +406,28 @@ const POSPage = () => {
                 {/* Cart Summary */}
                 <div className="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3">
                     {/* Discount */}
-                    <div className="flex items-center gap-2">
-                        <select
-                            value={discount.type}
-                            onChange={(e) => setDiscount((prev) => ({ ...prev, type: e.target.value }))}
-                            className="form-input w-24 text-sm"
-                        >
-                            <option value="percentage">%</option>
-                            <option value="fixed">$</option>
-                        </select>
-                        <input
-                            type="number"
-                            value={discount.value}
-                            onChange={(e) => setDiscount((prev) => ({ ...prev, value: parseFloat(e.target.value) || 0 }))}
-                            min="0"
-                            className="form-input flex-1 text-sm"
-                            placeholder="Discount"
-                        />
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Discount
+                        </label>
+                        <div className="flex items-center gap-2">
+                            <select
+                                value={discount.type}
+                                onChange={(e) => setDiscount((prev) => ({ ...prev, type: e.target.value }))}
+                                className="form-input w-24 text-sm"
+                            >
+                                <option value="percentage">%</option>
+                                <option value="fixed">$</option>
+                            </select>
+                            <input
+                                type="number"
+                                value={discount.value}
+                                onChange={(e) => setDiscount((prev) => ({ ...prev, value: parseFloat(e.target.value) || 0 }))}
+                                min="0"
+                                className="form-input flex-1 text-sm"
+                                placeholder={discount.type === 'percentage' ? 'Enter %' : 'Enter amount'}
+                            />
+                        </div>
                     </div>
 
                     {/* Totals */}
@@ -534,7 +540,7 @@ const POSPage = () => {
                                     onClick={() => setAmountReceived(amount.toString())}
                                     className="btn btn-secondary btn-sm"
                                 >
-                                    ${amount}
+                                    {currencySettings.currency_symbol}{amount}
                                 </button>
                             ))}
                             <button

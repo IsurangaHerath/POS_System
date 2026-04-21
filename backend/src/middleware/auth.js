@@ -16,7 +16,8 @@ const { unauthorizedResponse, errorResponse } = require('../utils/response');
 const logger = require('../utils/logger');
 
 // JWT configuration
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-access-secret-key';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key';
 
 /**
  * Extracts user information from JWT token and attaches to request object.
@@ -37,7 +38,7 @@ const authenticate = async (request, response, next) => {
             return unauthorizedResponse(response, 'Invalid token format');
         }
 
-        // Verify and decode the JWT token
+        // Verify and decode the JWT token using access secret
         const decodedToken = jwt.verify(token, JWT_SECRET);
 
         // Attach user information to request object
@@ -127,7 +128,7 @@ const generateRefreshToken = (user) => {
         type: 'refresh'
     };
 
-    return jwt.sign(tokenPayload, JWT_SECRET, {
+    return jwt.sign(tokenPayload, JWT_REFRESH_SECRET, {
         expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d'
     });
 };
@@ -139,7 +140,7 @@ const generateRefreshToken = (user) => {
  */
 const verifyRefreshToken = (token) => {
     try {
-        const decodedToken = jwt.verify(token, JWT_SECRET);
+        const decodedToken = jwt.verify(token, JWT_REFRESH_SECRET);
 
         // Ensure this is actually a refresh token
         if (decodedToken.type !== 'refresh') {

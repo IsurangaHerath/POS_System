@@ -52,8 +52,6 @@ const LoginPage = () => {
 
         if (!formData.password) {
             newErrors.password = 'Password is required';
-        } else if (formData.password.length < 6) {
-            newErrors.password = 'Password must be at least 6 characters';
         }
 
         setErrors(newErrors);
@@ -413,18 +411,10 @@ const LoginPage = () => {
                     <p className="text-sm text-gray-600 dark:text-gray-400 text-center mb-2">
                         Demo Credentials
                     </p>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                        <div className="text-center p-2 bg-white dark:bg-gray-800 rounded">
+                    <div className="flex justify-center text-xs">
+                        <div className="text-center p-2 bg-white dark:bg-gray-800 rounded w-full">
                             <p className="font-medium text-gray-900 dark:text-white">Admin</p>
-                            <p className="text-gray-500 dark:text-gray-400">admin / admin123</p>
-                        </div>
-                        <div className="text-center p-2 bg-white dark:bg-gray-800 rounded">
-                            <p className="font-medium text-gray-900 dark:text-white">Manager</p>
-                            <p className="text-gray-500 dark:text-gray-400">manager / manager123</p>
-                        </div>
-                        <div className="text-center p-2 bg-white dark:bg-gray-800 rounded">
-                            <p className="font-medium text-gray-900 dark:text-white">Cashier</p>
-                            <p className="text-gray-500 dark:text-gray-400">cashier / cashier123</p>
+                            <p className="text-gray-500 dark:text-gray-400">admin / password123</p>
                         </div>
                     </div>
                 </div>

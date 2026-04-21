@@ -1,14 +1,12 @@
 /**
- * Database Configuration Module
+ * Database Configuration Module (MySQL)
  * 
- * MySQL database connection pool configuration using mysql2/promise.
+ * MySQL database connection pool configuration using mysql2.
  * Provides a comprehensive database abstraction layer with:
- * - Connection pooling (optimized for cloud)
+ * - Connection pooling
  * - Query execution helpers
  * - Transaction support
  * - Query performance logging
- * - SSL support for cloud databases
- * - Retry logic for connection failures
  */
 
 const mysql = require('mysql2/promise');
@@ -20,37 +18,21 @@ const logger = require('../utils/logger');
 
 /**
  * Database connection configuration
- * Values are loaded from environment variables with cloud-optimized defaults
+ * Values are loaded from environment variables
  */
 const databaseConfig = {
-    // Connection settings
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT) || 3306,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'pos_system',
-    
-    // Connection pooling (cloud-optimized)
+    // Connection pooling
     waitForConnections: true,
     connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 20,
-    queueLimit: parseInt(process.env.DB_QUEUE_LIMIT) || 0,
-    
-    // Keep-alive settings for long-running connections
-    enableKeepAlive: true,
-    keepAliveInitialDelay: 10000,
-    
-    // Timeout settings for cloud environments
-    connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT) || 10000,
-    acquireTimeout: parseInt(process.env.DB_ACQUIRE_TIMEOUT) || 10000,
-    
-    // Timezone and charset
-    timezone: process.env.DB_TIMEZONE || '+00:00',
-    charset: process.env.DB_CHARSET || 'utf8mb4',
-    
-    // SSL configuration for cloud databases
-    ssl: process.env.DB_SSL === 'true' ? {
-        rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false'
-    } : null
+    queueLimit: 0,
+    connectTimeout: 10000,
+    // Enable multiple statements for schema execution if needed
+    multipleStatements: false
 };
 
 // Create the connection pool
@@ -68,9 +50,8 @@ let connectionHealth = {
 // ============================================
 
 /**
- * Tests the database connection with retry logic for cloud environments
+ * Tests the database connection
  * @returns {Promise<boolean>} True if connection successful
- * @throws {Error} If connection fails after retries
  */
 async function testConnection(retries = 3, delay = 1000) {
     for (let attempt = 1; attempt <= retries; attempt++) {
@@ -78,7 +59,7 @@ async function testConnection(retries = 3, delay = 1000) {
             logger.info(`Database connection attempt ${attempt}/${retries}...`);
             
             const connection = await pool.getConnection();
-            await connection.ping();
+            await connection.query('SELECT NOW()');
             connection.release();
             
             connectionHealth.lastSuccessfulConnection = new Date();
@@ -104,23 +85,16 @@ async function testConnection(retries = 3, delay = 1000) {
 
 /**
  * Checks if database connection is healthy
- * @returns {boolean} True if healthy
  */
 function isHealthy() {
     if (connectionHealth.consecutiveFailures >= connectionHealth.maxConsecutiveFailures) {
         return false;
     }
-    if (!connectionHealth.lastSuccessfulConnection) {
-        return true;
-    }
-    // Consider unhealthy if no successful connection in last 5 minutes
-    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-    return connectionHealth.lastSuccessfulConnection.getTime() > fiveMinutesAgo;
+    return true;
 }
 
 /**
  * Closes the database connection pool
- * @returns {Promise<void>}
  */
 async function closeConnection() {
     try {
@@ -132,31 +106,39 @@ async function closeConnection() {
     }
 }
 
-// ============================================
-// QUERY EXECUTION
-// ============================================
+/**
+ * Query execution helpers
+ * All methods now accept an optional 'connection' parameter to support transactions
+ */
 
 /**
  * Executes a raw SQL query with parameters
  * @param {string} sqlQuery - SQL query string
  * @param {Array} queryParams - Query parameter values
- * @returns {Promise<Array>} Query results
+ * @param {Object} [connection] - Optional transaction connection
+ * @returns {Promise<Array|Object>} Query results
  */
-async function executeQuery(sqlQuery, queryParams = []) {
+async function executeQuery(sqlQuery, queryParams = [], connection = null) {
     const queryStartTime = Date.now();
+    const executor = connection || pool;
     
     try {
-        // Use query() instead of execute() to properly handle LIMIT/OFFSET parameters
-        // execute() uses prepared statements which have issues with integer params in LIMIT
-        const [results] = await pool.query(sqlQuery, queryParams);
-        const queryDuration = queryStartTime - Date.now();
+        const [rows] = await executor.query(sqlQuery, queryParams);
+        const queryDuration = Date.now() - queryStartTime;
 
-        // Log slow queries (> 100ms)
-        if (Math.abs(queryDuration) > 100) {
-            logger.warn(`Slow query (${Math.abs(queryDuration)}ms): ${sqlQuery.substring(0, 100)}...`);
+        if (queryDuration > 100) {
+            logger.warn(`Slow query (${queryDuration}ms): ${sqlQuery.substring(0, 100)}...`);
         }
 
-        return results;
+        if (sqlQuery.trim().toUpperCase().startsWith('SELECT')) {
+            return rows;
+        }
+        
+        return {
+            affectedRows: rows.affectedRows,
+            insertId: rows.insertId,
+            rows: rows
+        };
     } catch (error) {
         logger.error('Query error:', {
             sql: sqlQuery.substring(0, 200),
@@ -168,24 +150,18 @@ async function executeQuery(sqlQuery, queryParams = []) {
 }
 
 /**
- * Retrieves a single row from the database
- * @param {string} sqlQuery - SQL query string
- * @param {Array} queryParams - Query parameter values
- * @returns {Promise<Object|null>} First row or null if no results
+ * Retrieves a single row
  */
-async function getSingleRow(sqlQuery, queryParams = []) {
-    const results = await executeQuery(sqlQuery, queryParams);
-    return results.length > 0 ? results[0] : null;
+async function getSingleRow(sqlQuery, queryParams = [], connection = null) {
+    const results = await executeQuery(sqlQuery, queryParams, connection);
+    return (Array.isArray(results) && results.length > 0) ? results[0] : null;
 }
 
 /**
- * Retrieves multiple rows from the database
- * @param {string} sqlQuery - SQL query string
- * @param {Array} queryParams - Query parameter values
- * @returns {Promise<Array>} Array of rows
+ * Retrieves multiple rows
  */
-async function getMultipleRows(sqlQuery, queryParams = []) {
-    return executeQuery(sqlQuery, queryParams);
+async function getMultipleRows(sqlQuery, queryParams = [], connection = null) {
+    return executeQuery(sqlQuery, queryParams, connection);
 }
 
 // ============================================
@@ -194,51 +170,39 @@ async function getMultipleRows(sqlQuery, queryParams = []) {
 
 /**
  * Inserts a row into a table
- * @param {string} tableName - Name of the table
- * @param {Object} rowData - Data to insert as key-value pairs
- * @returns {Promise<number>} Inserted row ID
  */
-async function insertRow(tableName, rowData) {
+async function insertRow(tableName, rowData, connection = null) {
     const columnNames = Object.keys(rowData);
     const columnValues = Object.values(rowData);
     const valuePlaceholders = columnNames.map(() => '?').join(', ');
     const columns = columnNames.join(', ');
 
     const sqlQuery = `INSERT INTO ${tableName} (${columns}) VALUES (${valuePlaceholders})`;
-    const result = await executeQuery(sqlQuery, columnValues);
+    const result = await executeQuery(sqlQuery, columnValues, connection);
 
     return result.insertId;
 }
 
 /**
  * Updates rows in a table
- * @param {string} tableName - Name of the table
- * @param {Object} updateData - Data to update as key-value pairs
- * @param {string} whereClause - WHERE clause (without WHERE keyword)
- * @param {Array} whereParams - Parameters for WHERE clause
- * @returns {Promise<number>} Number of affected rows
  */
-async function updateRows(tableName, updateData, whereClause, whereParams = []) {
+async function updateRows(tableName, updateData, whereClause, whereParams = [], connection = null) {
     const columnNames = Object.keys(updateData);
     const columnValues = Object.values(updateData);
     const setClause = columnNames.map(column => `${column} = ?`).join(', ');
 
     const sqlQuery = `UPDATE ${tableName} SET ${setClause} WHERE ${whereClause}`;
-    const result = await executeQuery(sqlQuery, [...columnValues, ...whereParams]);
+    const result = await executeQuery(sqlQuery, [...columnValues, ...whereParams], connection);
 
     return result.affectedRows;
 }
 
 /**
  * Deletes rows from a table
- * @param {string} tableName - Name of the table
- * @param {string} whereClause - WHERE clause (without WHERE keyword)
- * @param {Array} whereParams - Parameters for WHERE clause
- * @returns {Promise<number>} Number of affected rows
  */
-async function deleteRows(tableName, whereClause, whereParams = []) {
+async function deleteRows(tableName, whereClause, whereParams = [], connection = null) {
     const sqlQuery = `DELETE FROM ${tableName} WHERE ${whereClause}`;
-    const result = await executeQuery(sqlQuery, whereParams);
+    const result = await executeQuery(sqlQuery, whereParams, connection);
 
     return result.affectedRows;
 }
@@ -248,8 +212,14 @@ async function deleteRows(tableName, whereClause, whereParams = []) {
 // ============================================
 
 /**
+ * Gets a single connection from the pool
+ */
+async function getConnection() {
+    return await pool.getConnection();
+}
+
+/**
  * Begins a new database transaction
- * @returns {Promise<Object>} Database connection with active transaction
  */
 async function beginTransaction() {
     const connection = await pool.getConnection();
@@ -259,7 +229,6 @@ async function beginTransaction() {
 
 /**
  * Commits a transaction
- * @param {Object} connection - Database connection from beginTransaction
  */
 async function commitTransaction(connection) {
     await connection.commit();
@@ -268,7 +237,6 @@ async function commitTransaction(connection) {
 
 /**
  * Rolls back a transaction
- * @param {Object} connection - Database connection from beginTransaction
  */
 async function rollbackTransaction(connection) {
     await connection.rollback();
@@ -277,20 +245,20 @@ async function rollbackTransaction(connection) {
 
 /**
  * Executes a callback within a transaction
- * Automatically commits on success or rolls back on error
- * @param {Function} transactionCallback - Async function receiving the connection
- * @returns {Promise<any>} Result from the callback
  */
 async function runInTransaction(transactionCallback) {
-    const transactionConnection = await beginTransaction();
+    const connection = await pool.getConnection();
 
     try {
-        const transactionResult = await transactionCallback(transactionConnection);
-        await commitTransaction(transactionConnection);
+        await connection.beginTransaction();
+        const transactionResult = await transactionCallback(connection);
+        await connection.commit();
         return transactionResult;
     } catch (transactionError) {
-        await rollbackTransaction(transactionConnection);
+        await connection.rollback();
         throw transactionError;
+    } finally {
+        connection.release();
     }
 }
 

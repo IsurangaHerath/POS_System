@@ -1,7 +1,7 @@
 const db = require('../config/database');
 
 class Sale {
-    static async create(saleData) {
+    static async create(saleData, tx = null) {
         const {
             invoice_number,
             user_id,
@@ -26,12 +26,12 @@ class Sale {
         const result = await db.query(sql, [
             invoice_number, user_id, subtotal, tax_amount, discount_amount,
             total_amount, payment_method, amount_paid, change_amount, notes
-        ]);
+        ], tx);
 
         return result.insertId;
     }
 
-    static async createItem(saleId, itemData) {
+    static async createItem(saleId, itemData, tx = null) {
         const {
             product_id,
             product_name,
@@ -54,12 +54,12 @@ class Sale {
         const result = await db.query(sql, [
             saleId, product_id, product_name, product_barcode,
             unit_price, quantity, subtotal, discount, tax_amount
-        ]);
+        ], tx);
 
         return result.insertId;
     }
 
-    static async findById(id) {
+    static async findById(id, tx = null) {
         const sql = `
       SELECT s.*, u.full_name as cashier_name
       FROM sales s
@@ -67,11 +67,11 @@ class Sale {
       WHERE s.id = ?
     `;
 
-        return db.getOne(sql, [id]);
+        return db.getOne(sql, [id], tx);
     }
 
-    static async findByIdWithItems(id) {
-        const sale = await this.findById(id);
+    static async findByIdWithItems(id, tx = null) {
+        const sale = await this.findById(id, tx);
 
         if (!sale) {
             return null;
@@ -83,7 +83,7 @@ class Sale {
       ORDER BY id
     `;
 
-        const items = await db.getMany(itemsSql, [id]);
+        const items = await db.getMany(itemsSql, [id], tx);
         sale.items = items;
 
         return sale;
@@ -162,19 +162,19 @@ class Sale {
         };
     }
 
-    static async voidSale(id) {
+    static async voidSale(id, tx = null) {
         const sql = 'UPDATE sales SET status = ? WHERE id = ?';
-        const result = await db.query(sql, ['voided', id]);
+        const result = await db.query(sql, ['voided', id], tx);
 
         return result.affectedRows > 0;
     }
 
-    static async getSaleItems(saleId) {
+    static async getSaleItems(saleId, tx = null) {
         const sql = 'SELECT * FROM sale_items WHERE sale_id = ?';
-        return db.getMany(sql, [saleId]);
+        return db.getMany(sql, [saleId], tx);
     }
 
-    static async generateInvoiceNumber() {
+    static async generateInvoiceNumber(tx = null) {
         const date = new Date();
         const datePart = date.toISOString().slice(0, 10).replace(/-/g, '');
 
@@ -183,15 +183,15 @@ class Sale {
       FROM sales 
       WHERE DATE(sale_date) = CURRENT_DATE
     `;
-        const result = await db.getOne(sql);
+        const result = await db.getOne(sql, [], tx);
         const sequence = (result.count + 1).toString().padStart(4, '0');
 
         return `INV${datePart}${sequence}`;
     }
 
-    static async logInventoryChange(productId, quantityChange, referenceId, referenceType, userId, notes = null) {
+    static async logInventoryChange(productId, quantityChange, referenceId, referenceType, userId, notes = null, tx = null) {
         const productSql = 'SELECT quantity_in_stock FROM products WHERE id = ?';
-        const product = await db.getOne(productSql, [productId]);
+        const product = await db.getOne(productSql, [productId], tx);
 
         if (!product) return;
 
@@ -217,7 +217,7 @@ class Sale {
             referenceType,
             userId,
             notes
-        ]);
+        ], tx);
     }
 
     static async getDailySummary(date) {

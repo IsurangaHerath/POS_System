@@ -9,6 +9,8 @@ import api from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const REPORT_TYPES = {
     DAILY: 'daily',
@@ -153,72 +155,126 @@ const ReportsPage = () => {
             return;
         }
 
-        const reportTitle = selectedReportType === REPORT_TYPES.DAILY ? 'Daily Sales' : 'Monthly Sales';
+        const reportTitle = selectedReportType === REPORT_TYPES.DAILY ? 'Daily Sales Report' : 'Monthly Sales Report';
+        const dateRange = selectedReportType === REPORT_TYPES.DAILY 
+            ? `Date: ${dateFilter.startDate}`
+            : `Month: ${dateFilter.startDate.substring(0, 7)}`;
         
         // Check if we have individual sales data
         const hasIndividualSales = report.individual_sales && report.individual_sales.length > 0;
         
-        const tableHtml = `
-            <table>
-                <thead>
-                    <tr>
-                        ${hasIndividualSales ? '<th>Invoice</th>' : ''}
-                        <th>Date</th>
-                        ${hasIndividualSales ? '<th>Items</th>' : ''}
-                        ${hasIndividualSales ? '<th>Count</th>' : ''}
-                        <th>Revenue</th>
-                        <th>Tax</th>
-                        <th>Discount</th>
-                        ${hasIndividualSales ? '<th>Payment</th>' : ''}
-                        ${hasIndividualSales ? '<th>Cashier</th>' : ''}
-                    </tr>
-                </thead>
-                <tbody>
-                    ${exportData.map(row => `
-                        <tr>
-                            ${hasIndividualSales ? `<td>${row.invoice_number || ''}</td>` : ''}
-                            <td>${row.date || ''}</td>
-                            ${hasIndividualSales ? `<td>${row.item_count || 0}</td>` : ''}
-                            ${hasIndividualSales ? `<td>1</td>` : ''}
-                            <td>${row.revenue?.toFixed(2) || '0.00'}</td>
-                            <td>${row.tax?.toFixed(2) || '0.00'}</td>
-                            <td>${row.discount?.toFixed(2) || '0.00'}</td>
-                            ${hasIndividualSales ? `<td>${row.payment_method || ''}</td>` : ''}
-                            ${hasIndividualSales ? `<td>${row.cashier_name || ''}</td>` : ''}
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        `;
-
-        const htmlContent = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>${reportTitle} Report</title>
-                <style>
-                    body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
-                    h1 { color: #1a1a1a; margin-bottom: 10px; }
-                    .meta { color: #666; margin-bottom: 20px; font-size: 14px; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-                    th { background-color: #f5f5f5; font-weight: bold; }
-                    tr:nth-child(even) { background-color: #fafafa; }
-                </style>
-            </head>
-            <body>
-                <h1>${reportTitle} Report</h1>
-                <p class="meta">Generated on: ${new Date().toLocaleString()}</p>
-                ${tableHtml}
-            </body>
-            </html>
-        `;
-
-        // Use browser print (web environment)
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(htmlContent);
-        printWindow.document.close();
-        printWindow.print();
+        // Create PDF document
+        const doc = new jsPDF();
+        
+        // Add title
+        doc.setFontSize(18);
+        doc.text(reportTitle, 14, 20);
+        
+        // Add date and generation info
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(dateRange, 14, 28);
+        doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 34);
+        
+        // Add summary section
+        if (report.summary) {
+            doc.setFontSize(12);
+            doc.setTextColor(0);
+            doc.text('Summary', 14, 46);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(60);
+            const summaryY = 54;
+            const totalTransactions = report.summary.total_transactions || report.summary.total_count || 0;
+            const totalSales = report.summary.total_sales || report.summary.total_revenue || 0;
+            const totalTax = report.summary.total_tax || 0;
+            const totalDiscount = report.summary.total_discount || 0;
+            
+            doc.text(`Total Transactions: ${totalTransactions}`, 14, summaryY);
+            doc.text(`Total Revenue: ${formatCurrency(totalSales)}`, 14, summaryY + 6);
+            doc.text(`Total Tax: ${formatCurrency(totalTax)}`, 14, summaryY + 12);
+            doc.text(`Total Discount: ${formatCurrency(totalDiscount)}`, 14, summaryY + 18);
+            
+            // Add comparison if available
+            if (report.comparison) {
+                const compY = summaryY + 28;
+                doc.text(`Compared to: ${report.comparison.previous_period}`, 14, compY);
+                const revenueChange = parseFloat(report.comparison.revenue_change_percent) || 0;
+                const transactionChange = parseFloat(report.comparison.transaction_change_percent) || 0;
+                doc.text(`Revenue Change: ${revenueChange >= 0 ? '+' : ''}${report.comparison.revenue_change_percent}%`, 14, compY + 6);
+                doc.text(`Transaction Change: ${transactionChange >= 0 ? '+' : ''}${report.comparison.transaction_change_percent}%`, 14, compY + 12);
+            }
+        }
+        
+        // Prepare table data
+        let tableData = [];
+        let tableColumns = [];
+        
+        if (hasIndividualSales) {
+            tableColumns = [
+                { header: 'Invoice', dataKey: 'invoice_number' },
+                { header: 'Date', dataKey: 'date' },
+                { header: 'Items', dataKey: 'item_count' },
+                { header: 'Revenue', dataKey: 'revenue' },
+                { header: 'Tax', dataKey: 'tax' },
+                { header: 'Discount', dataKey: 'discount' },
+                { header: 'Payment', dataKey: 'payment_method' },
+                { header: 'Cashier', dataKey: 'cashier_name' }
+            ];
+            
+            tableData = exportData.map(row => ({
+                invoice_number: row.invoice_number || '',
+                date: row.date || '',
+                item_count: row.item_count || 0,
+                revenue: formatCurrency(row.revenue || 0),
+                tax: formatCurrency(row.tax || 0),
+                discount: formatCurrency(row.discount || 0),
+                payment_method: row.payment_method || '',
+                cashier_name: row.cashier_name || ''
+            }));
+        } else {
+            // Monthly data (aggregated)
+            tableColumns = [
+                { header: 'Date', dataKey: 'date' },
+                { header: 'Total Sales', dataKey: 'total_sales' },
+                { header: 'Revenue', dataKey: 'revenue' },
+                { header: 'Tax', dataKey: 'tax' },
+                { header: 'Discount', dataKey: 'discount' }
+            ];
+            
+            tableData = exportData.map(row => ({
+                date: row.date || '',
+                total_sales: row.count || row.sales_count || 0,
+                revenue: formatCurrency(row.revenue || 0),
+                tax: formatCurrency(row.tax || 0),
+                discount: formatCurrency(row.discount || 0)
+            }));
+        }
+        
+        // Add table to PDF
+        autoTable(doc, {
+            head: [tableColumns.map(col => col.header)],
+            body: tableData.map(row => tableColumns.map(col => row[col.dataKey])),
+            startY: report.summary ? 100 : 50,
+            theme: 'striped',
+            headStyles: {
+                fillColor: [66, 135, 245],
+                textColor: 255,
+                fontSize: 9,
+                fontStyle: 'bold'
+            },
+            bodyStyles: {
+                fontSize: 8
+            },
+            alternateRowStyles: {
+                fillColor: [245, 245, 245]
+            },
+            margin: { top: 50, right: 14, bottom: 14, left: 14 }
+        });
+        
+        // Generate filename and download
+        const filename = `${selectedReportType}_sales_report_${dateFilter.startDate}.pdf`;
+        doc.save(filename);
     };
 
     const formatCurrency = (amount) => {

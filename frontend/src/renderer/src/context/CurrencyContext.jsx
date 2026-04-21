@@ -64,13 +64,27 @@ export const CurrencyProvider = ({ children }) => {
 
     const updateCurrencySettings = useCallback(async (settings) => {
         try {
-            const response = await put('/settings/currency', settings);
+            // Get current settings to merge with updates
+            const current = JSON.parse(localStorage.getItem('currency_settings') || '{}');
+            const merged = { ...current, ...settings };
+
+            // If only currency_code is provided, auto-fill symbol from CURRENCIES
+            if (settings.currency_code && !settings.currency_symbol) {
+                const info = CURRENCIES[settings.currency_code];
+                if (info) {
+                    merged.currency_symbol = info.symbol;
+                }
+            }
+
+            const response = await put('/settings/currency', merged);
             if (response.data) {
-                setCurrencySettings({
-                    currency_code: response.data.currency_code || settings.currency_code,
-                    exchange_rate: response.data.exchange_rate || settings.exchange_rate,
-                    currency_symbol: response.data.currency_symbol || settings.currency_symbol
-                });
+                const newSettings = {
+                    currency_code: response.data.currency_code || merged.currency_code,
+                    exchange_rate: response.data.exchange_rate || merged.exchange_rate,
+                    currency_symbol: response.data.currency_symbol || merged.currency_symbol
+                };
+                setCurrencySettings(newSettings);
+                localStorage.setItem('currency_settings', JSON.stringify(newSettings));
             }
             return true;
         } catch (err) {
@@ -79,6 +93,19 @@ export const CurrencyProvider = ({ children }) => {
             return false;
         }
     }, []);
+
+    // Load from localStorage first for instant UI response
+    useEffect(() => {
+        const stored = localStorage.getItem('currency_settings');
+        if (stored) {
+            try {
+                setCurrencySettings(JSON.parse(stored));
+            } catch (e) {
+                console.error('Failed to parse stored currency settings');
+            }
+        }
+        fetchCurrencySettings();
+    }, [fetchCurrencySettings]);
 
     // Convert price from base currency (USD) to selected currency
     const convertPrice = useCallback((basePrice) => {
@@ -93,10 +120,12 @@ export const CurrencyProvider = ({ children }) => {
             return `${currencySettings.currency_symbol}0.00`;
         }
         
-        const convertedPrice = convertPrice(price);
+        // Price is already in USD base, just convert to selected currency
+        const rate = parseFloat(currencySettings.exchange_rate) || 1;
+        const convertedPrice = price * rate;
         const formatted = convertedPrice.toFixed(2);
         return `${currencySettings.currency_symbol}${formatted}`;
-    }, [currencySettings.currency_symbol, convertPrice]);
+    }, [currencySettings.currency_symbol, currencySettings.exchange_rate]);
 
     // Format price for reports (shows current currency info)
     const formatPriceForReport = useCallback((amount, storedRate = null) => {
@@ -117,6 +146,17 @@ export const CurrencyProvider = ({ children }) => {
         return CURRENCIES[code] || CURRENCIES.USD;
     }, []);
 
+    const setCurrency = useCallback(async (code) => {
+        const info = CURRENCIES[code];
+        if (info) {
+            return await updateCurrencySettings({
+                currency_code: code,
+                currency_symbol: info.symbol
+            });
+        }
+        return false;
+    }, [updateCurrencySettings]);
+
     const value = {
         currencySettings,
         loading,
@@ -124,6 +164,7 @@ export const CurrencyProvider = ({ children }) => {
         currencies: CURRENCIES,
         fetchCurrencySettings,
         updateCurrencySettings,
+        setCurrency,
         convertPrice,
         formatPrice,
         formatPriceForReport,
