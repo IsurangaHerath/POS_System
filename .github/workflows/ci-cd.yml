@@ -110,8 +110,4 @@ jobs:
           -H "Accept: application/json" \
           "${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK }}"
 
-<<<<<<< HEAD
           echo "Frontend deployment triggered successfully."
-=======
-          echo "Frontend deployment triggered successfully."
->>>>>>> 1b352705885769d0187e83791ae8ba523f106c44
