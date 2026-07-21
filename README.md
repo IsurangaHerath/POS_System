@@ -4,11 +4,14 @@ A comprehensive Point of Sale (POS) System featuring a React frontend and Node.j
 
 ## Live Demo
 
-🚀 Visit Application:
+🚀 Visit Application (Render):
 https://pos-system-1-aia1.onrender.com
 
-Backend API:
+Backend API (Render):
 https://pos-system-x61a.onrender.com
+
+Database Hosting:
+The MySQL database is hosted and managed in **Aiven**.
 
 ## Quick Start Guide
 
