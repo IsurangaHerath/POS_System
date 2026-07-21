@@ -33,7 +33,6 @@ const SettingsPage = () => {
     // Currency-specific settings
     const [currencySettings, setCurrencySettingsLocal] = useState({
         currency_code: 'USD',
-        exchange_rate: '1',
         currency_symbol: '$'
     });
 
@@ -50,7 +49,6 @@ const SettingsPage = () => {
             if (response.data) {
                 setCurrencySettingsLocal({
                     currency_code: response.data.currency_code || 'USD',
-                    exchange_rate: response.data.exchange_rate || '1',
                     currency_symbol: response.data.currency_symbol || '$'
                 });
             }
@@ -86,8 +84,7 @@ const SettingsPage = () => {
                 setSavingCurrency(true);
                 await updateCurrencySettings({
                     currency_code: updatedSettings.currency_code,
-                    currency_symbol: updatedSettings.currency_symbol,
-                    exchange_rate: updatedSettings.exchange_rate
+                    currency_symbol: updatedSettings.currency_symbol
                 });
                 success(`Currency changed to ${value}`);
             } catch (err) {
@@ -142,7 +139,7 @@ const SettingsPage = () => {
                 </div>
                 <div className="card-body space-y-4">
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Configure your base currency and exchange rates. All product prices will be displayed in the selected currency.
+                        Configure your base currency. All product prices will be displayed in the selected currency without numerical conversion.
                     </p>
                     
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -163,20 +160,6 @@ const SettingsPage = () => {
                         </div>
                         
                         <div>
-                            <label className="form-label">Exchange Rate (per 1 USD)</label>
-                            <input
-                                type="number"
-                                name="exchange_rate"
-                                value={currencySettings.exchange_rate}
-                                onChange={handleCurrencyChange}
-                                min="0.01"
-                                step="0.01"
-                                className="form-input"
-                                placeholder="e.g., 320 for LKR"
-                            />
-                        </div>
-                        
-                        <div>
                             <label className="form-label">Currency Symbol</label>
                             <input
                                 type="text"
@@ -192,9 +175,9 @@ const SettingsPage = () => {
 
                     <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                         <p className="text-sm text-blue-800 dark:text-blue-200">
-                            <strong>Current Display:</strong> {currencySettings.currency_symbol}1.00 = {currencySettings.currency_symbol}{currencySettings.exchange_rate}
+                            <strong>Current Display:</strong> {currencySettings.currency_symbol}10.00
                             <br />
-                            Example: A product costing $10.00 will display as {currencySettings.currency_symbol}{(10 * parseFloat(currencySettings.exchange_rate || 1)).toFixed(2)}
+                            Example: A product costing 10 will display as {currencySettings.currency_symbol}10.00
                         </p>
                     </div>
 

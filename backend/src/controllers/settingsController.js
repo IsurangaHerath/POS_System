@@ -83,7 +83,7 @@ const updateSetting = async (req, res, next) => {
  */
 const getCurrencySettings = async (req, res, next) => {
     try {
-        const sql = 'SELECT * FROM settings WHERE setting_key IN ("currency_code", "currency_symbol", "exchange_rate")';
+        const sql = 'SELECT * FROM settings WHERE setting_key IN ("currency_code", "currency_symbol")';
         const settings = await db.getMany(sql);
 
         // Convert array to object
@@ -95,9 +95,6 @@ const getCurrencySettings = async (req, res, next) => {
         // Set defaults if not found
         if (!currencySettings.currency_code) {
             currencySettings.currency_code = 'USD';
-        }
-        if (!currencySettings.exchange_rate) {
-            currencySettings.exchange_rate = '1';
         }
         if (!currencySettings.currency_symbol) {
             currencySettings.currency_symbol = '$';
@@ -115,11 +112,10 @@ const getCurrencySettings = async (req, res, next) => {
  */
 const updateCurrencySettings = async (req, res, next) => {
     try {
-        const { currency_code, exchange_rate, currency_symbol } = req.body;
+        const { currency_code, currency_symbol } = req.body;
 
         const settingsToUpdate = [
             { key: 'currency_code', value: currency_code },
-            { key: 'exchange_rate', value: exchange_rate },
             { key: 'currency_symbol', value: currency_symbol }
         ];
 

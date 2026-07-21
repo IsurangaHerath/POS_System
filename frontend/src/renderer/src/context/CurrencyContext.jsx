@@ -26,7 +26,6 @@ const CURRENCIES = {
 export const CurrencyProvider = ({ children }) => {
     const [currencySettings, setCurrencySettings] = useState({
         currency_code: 'USD',
-        exchange_rate: '1',
         currency_symbol: '$'
     });
     const [loading, setLoading] = useState(true);
@@ -44,7 +43,6 @@ export const CurrencyProvider = ({ children }) => {
             if (response.data) {
                 setCurrencySettings({
                     currency_code: response.data.currency_code || 'USD',
-                    exchange_rate: response.data.exchange_rate || '1',
                     currency_symbol: response.data.currency_symbol || '$'
                 });
             }
@@ -54,7 +52,6 @@ export const CurrencyProvider = ({ children }) => {
             // Use defaults on error
             setCurrencySettings({
                 currency_code: 'USD',
-                exchange_rate: '1',
                 currency_symbol: '$'
             });
         } finally {
@@ -80,7 +77,6 @@ export const CurrencyProvider = ({ children }) => {
             if (response.data) {
                 const newSettings = {
                     currency_code: response.data.currency_code || merged.currency_code,
-                    exchange_rate: response.data.exchange_rate || merged.exchange_rate,
                     currency_symbol: response.data.currency_symbol || merged.currency_symbol
                 };
                 setCurrencySettings(newSettings);
@@ -107,39 +103,31 @@ export const CurrencyProvider = ({ children }) => {
         fetchCurrencySettings();
     }, [fetchCurrencySettings]);
 
-    // Convert price from base currency (USD) to selected currency
+    // Return raw price, ignoring currency conversion since we only change display
     const convertPrice = useCallback((basePrice) => {
         if (!basePrice || isNaN(basePrice)) return 0;
-        const rate = parseFloat(currencySettings.exchange_rate) || 1;
-        return basePrice * rate;
-    }, [currencySettings.exchange_rate]);
+        return basePrice;
+    }, []);
 
-    // Format price with currency symbol
+    // Format price with currency symbol without numerical conversion
     const formatPrice = useCallback((price) => {
         if (price === null || price === undefined || isNaN(price)) {
             return `${currencySettings.currency_symbol}0.00`;
         }
         
-        // Price is already in USD base, just convert to selected currency
-        const rate = parseFloat(currencySettings.exchange_rate) || 1;
-        const convertedPrice = price * rate;
-        const formatted = convertedPrice.toFixed(2);
+        const formatted = Number(price).toFixed(2);
         return `${currencySettings.currency_symbol}${formatted}`;
-    }, [currencySettings.currency_symbol, currencySettings.exchange_rate]);
+    }, [currencySettings.currency_symbol]);
 
-    // Format price for reports (shows current currency info)
+    // Format price for reports (shows current currency info without conversion)
     const formatPriceForReport = useCallback((amount, storedRate = null) => {
         if (amount === null || amount === undefined || isNaN(amount)) {
             return `${currencySettings.currency_symbol}0.00`;
         }
         
-        // If stored rate is provided, use it to convert from USD base
-        // This preserves the original currency value
-        const rate = storedRate ? parseFloat(storedRate) : parseFloat(currencySettings.exchange_rate);
-        const convertedAmount = amount * rate;
-        const formatted = convertedAmount.toFixed(2);
+        const formatted = Number(amount).toFixed(2);
         return `${currencySettings.currency_symbol}${formatted}`;
-    }, [currencySettings.currency_symbol, currencySettings.exchange_rate]);
+    }, [currencySettings.currency_symbol]);
 
     // Get currency info
     const getCurrencyInfo = useCallback((code) => {
