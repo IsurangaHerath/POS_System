@@ -68,6 +68,39 @@ The MySQL database is hosted and managed in **Aiven**.
 
 Once the application opens (usually at http://localhost:5173), you can register a new user or login.
 
+## CI/CD Pipeline
+
+This project uses **GitHub Actions** to automate testing and deployment. The pipeline is defined in `.github/workflows/ci-cd.yml`.
+
+
+
+### How It Works
+
+This CI/CD pipeline is designed to ensure code quality before pushing it to production on Render.
+
+1. **Triggering the Pipeline (`on:`)**: 
+   - The workflow automatically runs every time you push code to the `main` branch or create a pull request targeting `main`.
+
+2. **The Build & Test Job (`build-and-test`)**:
+   - Runs on an Ubuntu virtual machine.
+   - Checks out the latest code from your repository.
+   - Sets up Node.js v20.
+   - **Installs dependencies** for the root, frontend, and backend folders.
+   - **Lints the backend**: Checks for code formatting or syntax issues if an ESLint configuration file exists.
+   - **Tests the backend**: Runs automated tests using `npm test` (passing silently if tests haven't been written yet).
+   - **Builds the application**: Compiles the frontend React/Vite application for production.
+   - *If any of these steps fail, the pipeline stops and prevents a broken deployment.*
+
+3. **The Deployment Job (`deploy-to-render`)**:
+   - Requires the `build-and-test` job to succeed before starting (`needs: build-and-test`).
+   - Ensures deployments only happen on direct pushes to `main` (pull requests are tested, but not deployed).
+   - Uses `curl` to securely ping **Render Deploy Hooks**, commanding Render to pull the latest code and deploy the backend API and frontend application.
+
+### Required GitHub Secrets
+To make the automated deployment work, you must configure the following secrets in your GitHub repository under `Settings > Secrets and variables > Actions`:
+- `RENDER_API_DEPLOY_HOOK`: The Deploy Hook URL from your Render Backend Web Service settings.
+- `RENDER_FRONTEND_DEPLOY_HOOK`: The Deploy Hook URL from your Render Frontend Static Site settings.
+
 ## Project Structure Overview
 
 ```text
