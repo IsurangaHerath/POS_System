@@ -20,8 +20,14 @@ const { NotFoundError, ConflictError } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
 
 /**
- * Retrieves a paginated list of products with optional filtering
- * Query params: page, limit, category_id, is_active, low_stock, search, sortBy, sortOrder
+ * @description Lists products with pagination, keyword search, and category/active/low-stock
+ *              filters; joins category names for display.
+ * @access      Authenticated.
+ * @triggeredBy ProductsPage (list/search/filter) and POSPage / PurchaseOrdersPage product pickers.
+ * @request     GET /api/products
+ * @params      Query: page, limit, category_id, is_active, low_stock, search, sortBy, sortOrder.
+ * @dbOps       Product.findAll → SELECT products (optional JOIN categories, WHERE/Having).
+ * @returns     paginatedResponse { success, data: products, pagination }.
  */
 const getProducts = async (request, response, next) => {
     try {
@@ -57,8 +63,13 @@ const getProducts = async (request, response, next) => {
 };
 
 /**
- * Retrieves a single product by its ID
- * Params: id
+ * @description Retrieves a single product by its primary key ID.
+ * @access      Authenticated.
+ * @triggeredBy No frontend caller today (detail views render from list data).
+ * @request     GET /api/products/:id
+ * @params      Param: id.
+ * @dbOps       Product.findById → SELECT products.
+ * @returns     { success, data: product }.
  */
 const getProductById = async (request, response, next) => {
     try {
@@ -77,8 +88,13 @@ const getProductById = async (request, response, next) => {
 };
 
 /**
- * Retrieves a single product by its barcode
- * Params: barcode
+ * @description Retrieves a single product by its barcode (for scanner-based lookup).
+ * @access      Authenticated.
+ * @triggeredBy No frontend caller today (POSPage loads the full catalog instead of barcode lookups).
+ * @request     GET /api/products/barcode/:barcode
+ * @params      Param: barcode.
+ * @dbOps       Product.findByBarcode → SELECT products WHERE barcode.
+ * @returns     { success, data: product }.
  */
 const getProductByBarcode = async (request, response, next) => {
     try {
@@ -97,7 +113,13 @@ const getProductByBarcode = async (request, response, next) => {
 };
 
 /**
- * Retrieves all products with low stock levels
+ * @description Returns every product whose stock is at/below its reorder level.
+ * @access      Authenticated.
+ * @triggeredBy No direct frontend caller today (Dashboard uses /api/dashboard/low-stock instead).
+ * @request     GET /api/products/low-stock
+ * @params      none.
+ * @dbOps       Product.getLowStock → SELECT products WHERE quantity_in_stock <= reorder_level.
+ * @returns     { success, data: products[] }.
  */
 const getLowStockProducts = async (request, response, next) => {
     try {
@@ -110,9 +132,15 @@ const getLowStockProducts = async (request, response, next) => {
 };
 
 /**
- * Creates a new product
- * Body: name, barcode, sku, category_id, cost_price, selling_price, 
- *       quantity_in_stock, reorder_level, unit, description, tax_rate
+ * @description Creates a product, enforcing unique sku/barcode, and returns the created record.
+ * @access      Manager/Admin.
+ * @triggeredBy ProductsPage → ProductForm "Save" → handleSubmit().
+ * @request     POST /api/products
+ * @params      Body: name, sku, barcode?, category_id?, cost_price (default 0), selling_price,
+ *              quantity_in_stock (default 0), reorder_level (default 10), unit (default 'piece'),
+ *              description?, tax_rate (default 0).
+ * @dbOps       Product.skuExists / Product.barcodeExists (SELECT); Product.create (INSERT products); Product.findById (SELECT).
+ * @returns     { success, data: product } (201).
  */
 const createProduct = async (request, response, next) => {
     try {
@@ -170,9 +198,13 @@ const createProduct = async (request, response, next) => {
 };
 
 /**
- * Updates an existing product
- * Params: id
- * Body: product fields to update
+ * @description Updates an existing product with sku/barcode uniqueness checks against other products.
+ * @access      Manager/Admin.
+ * @triggeredBy ProductsPage edit modal → handleSubmit().
+ * @request     PUT /api/products/:id
+ * @params      Param: id; Body: any updatable product fields.
+ * @dbOps       Product.findById (SELECT); Product.skuExists / Product.barcodeExists (SELECT); Product.update (UPDATE products).
+ * @returns     { success, data: product }.
  */
 const updateProduct = async (request, response, next) => {
     try {
@@ -215,8 +247,13 @@ const updateProduct = async (request, response, next) => {
 };
 
 /**
- * Deletes (deactivates) a product
- * Params: id
+ * @description Deactivates a product so it no longer appears in active listings/sales.
+ * @access      Manager/Admin.
+ * @triggeredBy ProductsPage delete confirmation → handleDelete().
+ * @request     DELETE /api/products/:id
+ * @params      Param: id.
+ * @dbOps       Product.findById (SELECT); Product.delete → deactivate/soft DELETE products.
+ * @returns     { success, message: 'Product deactivated successfully' }.
  */
 const deleteProduct = async (request, response, next) => {
     try {

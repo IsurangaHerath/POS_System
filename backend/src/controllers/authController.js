@@ -7,6 +7,16 @@ const logger = require('../utils/logger');
 
 const SALT_ROUNDS = 12;
 
+/**
+ * @description Registers a new self-service account; password is bcrypt-hashed before insert.
+ *              Self-registration is forced to the 'cashier' role regardless of the submitted role.
+ * @access      Public (no auth).
+ * @triggeredBy LoginPage register mode → AuthContext.register().
+ * @request     POST /api/auth/register
+ * @params      Body: username, email, password, full_name, role (optional), phone (optional).
+ * @dbOps       User.usernameExists / User.emailExists (SELECT); User.create (INSERT users, password_hash via bcrypt.hash); User.findById (SELECT).
+ * @returns     { success, data: { user, tokens: { accessToken, refreshToken } } } (201).
+ */
 const register = async (req, res, next) => {
     try {
         const { username, email, password, full_name, role = 'cashier', phone } = req.body;
@@ -63,6 +73,16 @@ const register = async (req, res, next) => {
     }
 };
 
+/**
+ * @description Authenticates a user by username/email + password and issues JWT access/refresh tokens.
+ *              Rejects inactive accounts and logs every attempt for security auditing.
+ * @access      Public.
+ * @triggeredBy LoginPage submit → AuthContext.login().
+ * @request     POST /api/auth/login
+ * @params      Body: username, password.
+ * @dbOps       User.findByUsernameOrEmail (SELECT); bcrypt.compare; User.updateLastLogin (UPDATE last_login).
+ * @returns     { success, data: { user, tokens: { accessToken, refreshToken } }, message }.
+ */
 const login = async (req, res, next) => {
     try {
         const { username, password } = req.body;
@@ -123,6 +143,16 @@ const login = async (req, res, next) => {
     }
 };
 
+/**
+ * @description Ends the user's session server-side. No DB mutation required since the
+ *              frontend (AuthContext) clears the stored tokens after the call succeeds.
+ * @access      Authenticated.
+ * @triggeredBy Navbar logout → AuthContext.logout().
+ * @request     POST /api/auth/logout
+ * @params      none (auth via Bearer token).
+ * @dbOps       None.
+ * @returns     { success, message: 'Logout successful' }.
+ */
 const logout = async (req, res, next) => {
     try {
         if (req.user) {
@@ -135,6 +165,15 @@ const logout = async (req, res, next) => {
     }
 };
 
+/**
+ * @description Exchanges a valid refresh token for a fresh access/refresh token pair.
+ * @access      Public (token supplied in body).
+ * @triggeredBy No frontend caller today — reserved for a future token auto-refresh flow.
+ * @request     POST /api/auth/refresh
+ * @params      Body: refreshToken.
+ * @dbOps       verifyRefreshToken (JWT verify); User.findById (SELECT).
+ * @returns     { success, data: { accessToken, refreshToken } }.
+ */
 const refresh = async (req, res, next) => {
     try {
         const { refreshToken } = req.body;
@@ -170,6 +209,15 @@ const refresh = async (req, res, next) => {
     }
 };
 
+/**
+ * @description Returns the currently authenticated user's full profile from the JWT payload.
+ * @access      Authenticated.
+ * @triggeredBy AuthContext bootstrap → GET /auth/me on app load and page refresh.
+ * @request     GET /api/auth/me
+ * @params      none (auth via Bearer token).
+ * @dbOps       User.findById → SELECT users.
+ * @returns     { success, data: user }.
+ */
 const getCurrentUser = async (req, res, next) => {
     try {
         const user = await User.findById(req.user.id);
@@ -184,6 +232,16 @@ const getCurrentUser = async (req, res, next) => {
     }
 };
 
+/**
+ * @description Verifies the user's current password, then hashes and persists a new password.
+ *              Requires the new password to match its confirmation and be at least 8 characters.
+ * @access      Authenticated (self-service).
+ * @triggeredBy ProfilePage change-password form → AuthContext.changePassword().
+ * @request     PUT /api/auth/password
+ * @params      Body: currentPassword, newPassword, confirmPassword.
+ * @dbOps       User.findById (SELECT); User.findByUsername (SELECT for password check); User.updatePassword (UPDATE password_hash).
+ * @returns     { success, message: 'Password changed successfully' }.
+ */
 const changePassword = async (req, res, next) => {
     try {
         const { currentPassword, newPassword, confirmPassword } = req.body;
@@ -224,6 +282,15 @@ const changePassword = async (req, res, next) => {
     }
 };
 
+/**
+ * @description Admin-only password reset for a target user, bypassing knowledge of the current password.
+ * @access      Authenticated + adminOnly (route middleware).
+ * @triggeredBy No frontend caller today — reserved for an admin "reset password" UI.
+ * @request     POST /api/auth/reset-password/:userId
+ * @params      Param: userId; Body: newPassword.
+ * @dbOps       User.findById (SELECT); bcrypt.hash; User.updatePassword (UPDATE password_hash).
+ * @returns     { success, message: 'Password reset successfully' }.
+ */
 const resetPassword = async (req, res, next) => {
     try {
         const { userId } = req.params;

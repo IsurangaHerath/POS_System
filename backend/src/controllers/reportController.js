@@ -11,8 +11,15 @@ const logger = require('../utils/logger');
 const db = require('../config/database');
 
 /**
- * Get daily sales report
- * @route GET /api/reports/daily-sales
+ * @description Builds the daily sales report: summary vs the previous day, hourly + payment
+ *              breakdowns, top products, and the list of completed sales for the chosen date.
+ * @access      Manager/Admin.
+ * @triggeredBy ReportsPage → Daily tab → fetchReportData().
+ * @request     GET /api/reports/daily-sales
+ * @params      Query: date (YYYY-MM-DD, defaults to today).
+ * @dbOps       Sale.getDailySummary, Sale.getTopProducts, getHourlyBreakdown(date),
+ *              raw aggregate SELECTs over sales + sale_items/users.
+ * @returns     { success, data: { date, summary, comparison, hourly_breakdown, payment_breakdown, top_products, sales } }.
  */
 const getDailySalesReport = async (req, res, next) => {
     try {
@@ -140,8 +147,15 @@ const getDailySalesReport = async (req, res, next) => {
 };
 
 /**
- * Get monthly sales report
- * @route GET /api/reports/monthly-sales
+ * @description Builds the monthly sales report: summary vs the previous month, daily/weekly/
+ *              category breakdowns, and the list of completed sales for the chosen month.
+ * @access      Manager/Admin.
+ * @triggeredBy ReportsPage → Monthly tab → fetchReportData().
+ * @request     GET /api/reports/monthly-sales
+ * @params      Query: year?, month? — month may be 'YYYY-MM' or 'M'/'MM'; defaults to current month.
+ * @dbOps       Sale.getMonthlySummary, getDailyBreakdown, getWeeklyBreakdown, getCategoryBreakdown,
+ *              raw aggregate SELECTs over sales + sale_items/users/categories.
+ * @returns     { success, data: { year, month, summary, comparison, daily_breakdown, weekly_breakdown, category_breakdown, sales, individual_sales } }.
  */
 const getMonthlySalesReport = async (req, res, next) => {
     try {
@@ -292,8 +306,14 @@ const getMonthlySalesReport = async (req, res, next) => {
 };
 
 /**
- * Get product performance report
- * @route GET /api/reports/product-performance
+ * @description Builds a product-performance report: top products with profit and margin
+ *              computed from cost price, scoped by optional date range / category.
+ * @access      Manager/Admin.
+ * @triggeredBy No frontend caller today (ReportsPage only uses daily/monthly endpoints).
+ * @request     GET /api/reports/product-performance
+ * @params      Query: startDate?, endDate?, category_id?, limit (default 20).
+ * @dbOps       Sale.getTopProducts, Product.findById per product (SELECT).
+ * @returns     { success, data: { period, products, summary } }.
  */
 const getProductPerformanceReport = async (req, res, next) => {
     try {
@@ -352,8 +372,13 @@ const getProductPerformanceReport = async (req, res, next) => {
 };
 
 /**
- * Export report to CSV
- * @route GET /api/reports/export/csv
+ * @description Exports a report as a downloadable CSV file (daily/monthly/product types).
+ * @access      Manager/Admin.
+ * @triggeredBy No frontend caller today — ReportsPage generates CSVs client-side.
+ * @request     GET /api/reports/export/csv
+ * @params      Query: type ('daily'|'monthly'|'product'), date?, year?, month?.
+ * @dbOps       Sale.getDailySummary / Sale.getMonthlySummary / Sale.getTopProducts (SELECT).
+ * @returns     text/csv file download (Content-Disposition attachment).
  */
 const exportToCSV = async (req, res, next) => {
     try {
@@ -414,8 +439,14 @@ const exportToCSV = async (req, res, next) => {
 };
 
 /**
- * Export report to PDF
- * @route GET /api/reports/export/pdf
+ * @description Placeholder PDF export endpoint — currently returns the underlying report data
+ *              as JSON (PDF generation would use a library like PDFKit).
+ * @access      Manager/Admin.
+ * @triggeredBy No frontend caller today — ReportsPage exports PDFs client-side (jsPDF).
+ * @request     GET /api/reports/export/pdf
+ * @params      Query: type ('daily'|'monthly'), date?, year?, month?.
+ * @dbOps       Sale.getDailySummary / Sale.getMonthlySummary (SELECT).
+ * @returns     { success, message, data } JSON.
  */
 const exportToPDF = async (req, res, next) => {
     try {
@@ -451,6 +482,12 @@ const exportToPDF = async (req, res, next) => {
 };
 
 // Helper functions
+/**
+ * @description Helper: aggregates completed sales into per-hour buckets for a given date.
+ * @param       {string} date - Date in 'YYYY-MM-DD' format.
+ * @dbOps       Aggregate SELECT over sales GROUP BY HOUR(sale_date).
+ * @returns     {Promise<Array<{hour, transactions, sales}>>}
+ */
 async function getHourlyBreakdown(date) {
     const sql = `
     SELECT 
@@ -465,6 +502,13 @@ async function getHourlyBreakdown(date) {
     return db.getMany(sql, [date]);
 }
 
+/**
+ * @description Helper: aggregates completed sales into per-day buckets for a given year/month.
+ * @param       {number} year  - 4-digit year.
+ * @param       {number} month - Month number (1-12).
+ * @dbOps       Aggregate SELECT over sales GROUP BY DATE(sale_date).
+ * @returns     {Promise<Array<{date, transactions, sales}>>}
+ */
 async function getDailyBreakdown(year, month) {
     console.log('[ReportController] getDailyBreakdown executing with:', { year, month });
     
@@ -481,6 +525,14 @@ async function getDailyBreakdown(year, month) {
     return db.getMany(sql, [year, month]);
 }
 
+/**
+ * @description Helper: aggregates completed sales into per-week (1-indexed within the month)
+ *              buckets for a given year/month.
+ * @param       {number} year  - 4-digit year.
+ * @param       {number} month - Month number (1-12).
+ * @dbOps       Aggregate SELECT over sales GROUP BY WEEK(sale_date).
+ * @returns     {Promise<Array<{week, transactions, sales}>>}
+ */
 async function getWeeklyBreakdown(year, month) {
     console.log('[ReportController] getWeeklyBreakdown executing with:', { year, month });
     
@@ -505,6 +557,13 @@ async function getWeeklyBreakdown(year, month) {
     }
 }
 
+/**
+ * @description Helper: aggregates completed sales by product category for a given year/month.
+ * @param       {number} year  - 4-digit year.
+ * @param       {number} month - Month number (1-12).
+ * @dbOps       Aggregate SELECT over sale_items JOIN sales/products/categories GROUP BY category.
+ * @returns     {Promise<Array<{category_name, items_sold, revenue}>>}
+ */
 async function getCategoryBreakdown(year, month) {
     const sql = `
     SELECT 

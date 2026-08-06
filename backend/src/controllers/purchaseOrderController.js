@@ -12,8 +12,13 @@ const logger = require('../utils/logger');
 const db = require('../config/database');
 
 /**
- * Get all purchase orders
- * @route GET /api/purchase-orders
+ * @description Lists purchase orders with pagination and optional status/supplier filters.
+ * @access      Authenticated (manager+ for create/update).
+ * @triggeredBy PurchaseOrdersPage list → fetchOrders().
+ * @request     GET /api/purchase-orders
+ * @params      Query: page, limit, status, supplier_id.
+ * @dbOps       PurchaseOrder.findAll → SELECT purchase_orders (JOIN suppliers/users).
+ * @returns     paginatedResponse { success, data: purchaseOrders, pagination }.
  */
 const getPurchaseOrders = async (req, res, next) => {
     try {
@@ -40,8 +45,13 @@ const getPurchaseOrders = async (req, res, next) => {
 };
 
 /**
- * Get purchase order by ID
- * @route GET /api/purchase-orders/:id
+ * @description Returns a single purchase order with all its line items.
+ * @access      Authenticated.
+ * @triggeredBy No frontend caller today (no PO detail view).
+ * @request     GET /api/purchase-orders/:id
+ * @params      Param: id.
+ * @dbOps       PurchaseOrder.findByIdWithItems → SELECT purchase_orders + purchase_order_items.
+ * @returns     { success, data: purchaseOrder }.
  */
 const getPurchaseOrderById = async (req, res, next) => {
     try {
@@ -60,8 +70,15 @@ const getPurchaseOrderById = async (req, res, next) => {
 };
 
 /**
- * Create new purchase order
- * @route POST /api/purchase-orders
+ * @description Creates a purchase order: validates line items against existing products,
+ *              generates a unique PO number, inserts header + items.
+ * @access      Manager/Admin.
+ * @triggeredBy PurchaseOrdersPage "Create Order" → handleCreateOrder().
+ * @request     POST /api/purchase-orders
+ * @params      Body: supplier_id, items[{product_id, quantity, unit_cost}], expected_date?, notes?.
+ * @dbOps       Product.findById (SELECT per item); PurchaseOrder.generatePONumber;
+ *              PurchaseOrder.create (INSERT purchase_orders); PurchaseOrder.createItem (INSERT items).
+ * @returns     { success, data: purchaseOrder } (201).
  */
 const createPurchaseOrder = async (req, res, next) => {
     try {
@@ -127,8 +144,18 @@ const createPurchaseOrder = async (req, res, next) => {
 };
 
 /**
- * Receive purchase order items
- * @route PUT /api/purchase-orders/:id/receive
+ * @description Marks a purchase order as received/partially received inside a transaction:
+ *              restocks product quantities for the received delta, logs inventory changes,
+ *              and updates the PO status to 'received' (all items) or 'approved' (partial).
+ * @access      Manager/Admin.
+ * @triggeredBy No frontend caller today — the UI sends PUT /purchase-orders/:id/status
+ *              instead, which has no backend route (see PROJECT_INTERACTION_MAPPING.md §14 #2).
+ * @request     PUT /api/purchase-orders/:id/receive
+ * @params      Param: id; Body: items[{product_id, quantity_received}], notes?.
+ * @dbOps       TX: PurchaseOrder.findById (SELECT), PurchaseOrder.findItem (SELECT), Product.updateStock (UPDATE),
+ *              PurchaseOrder.logInventoryChange (INSERT inventory_logs), PurchaseOrder.updateItemReceived (UPDATE),
+ *              PurchaseOrder.getItems (SELECT), PurchaseOrder.updateStatus (UPDATE); commit/rollback.
+ * @returns     { success, data: purchaseOrder }.
  */
 const receivePurchaseOrder = async (req, res, next) => {
     try {
@@ -206,8 +233,14 @@ const receivePurchaseOrder = async (req, res, next) => {
 };
 
 /**
- * Cancel purchase order
- * @route PUT /api/purchase-orders/:id/cancel
+ * @description Cancels a pending purchase order; received POs cannot be cancelled.
+ * @access      Manager/Admin.
+ * @triggeredBy No frontend caller today — the UI sends PUT /purchase-orders/:id/status
+ *              instead, which has no backend route (see PROJECT_INTERACTION_MAPPING.md §14 #2).
+ * @request     PUT /api/purchase-orders/:id/cancel
+ * @params      Param: id; Body: reason?.
+ * @dbOps       PurchaseOrder.findById (SELECT); PurchaseOrder.updateStatus('cancelled') → UPDATE.
+ * @returns     { success, data: { id, status: 'cancelled' } }.
  */
 const cancelPurchaseOrder = async (req, res, next) => {
     try {

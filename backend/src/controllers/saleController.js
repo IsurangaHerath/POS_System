@@ -26,8 +26,15 @@ const logger = require('../utils/logger');
 const database = require('../config/database');
 
 /**
- * Retrieves a paginated list of sales with optional filtering
- * Query params: page, limit, startDate, endDate, status, payment_method, user_id
+ * @description Lists sales with pagination and filters (date range, status, payment method, user).
+ * @access      Authenticated.
+ * @triggeredBy SalesPage list/filter → fetchSales().
+ * @request     GET /api/sales
+ * @params      Query: page, limit, startDate, endDate, status, payment_method, user_id.
+ *              NOTE: frontend currently sends start_date/end_date (snake_case) — mismatched with
+ *              startDate/endDate here, so date filtering is not applied (see PROJECT_INTERACTION_MAPPING.md §14).
+ * @dbOps       Sale.findAll → SELECT sales (+ item aggregation).
+ * @returns     paginatedResponse { success, data: sales, pagination }.
  */
 const getSales = async (request, response, next) => {
     try {
@@ -61,8 +68,13 @@ const getSales = async (request, response, next) => {
 };
 
 /**
- * Retrieves a single sale by ID with all items
- * Params: id
+ * @description Returns a single sale with all its line items.
+ * @access      Authenticated.
+ * @triggeredBy SalesPage row click → SaleDetailPage.
+ * @request     GET /api/sales/:id
+ * @params      Param: id.
+ * @dbOps       Sale.findByIdWithItems → SELECT sales + sale_items.
+ * @returns     { success, data: sale }.
  */
 const getSaleById = async (request, response, next) => {
     try {
@@ -81,9 +93,19 @@ const getSaleById = async (request, response, next) => {
 };
 
 /**
- * Creates a new sale (POS transaction)
- * Includes inventory management and transaction support
- * Body: items, payment_method, amount_paid, discount_amount, notes
+ * @description Processes a POS checkout inside a single DB transaction: validates stock per item
+ *              (row-locked), inserts the sale header + line items, computes tax/totals server-side,
+ *              decrements stock, writes inventory logs, then commits (rollback on any failure).
+ * @access      Authenticated (cashier+).
+ * @triggeredBy POSPage checkout → handleCheckout() → POST /sales.
+ * @request     POST /api/sales
+ * @params      Body: items[{product_id, quantity, unit_price, discount}], payment_method,
+ *              amount_paid, discount_amount, notes?.
+ * @dbOps       TX: Product.findByIdForUpdate (SELECT ... FOR UPDATE), Sale.generateInvoiceNumber,
+ *              Sale.create (INSERT sales), Sale.createItem (INSERT sale_items),
+ *              Product.updateStock (UPDATE quantity_in_stock), Sale.logInventoryChange (INSERT inventory_logs, type='sale');
+ *              database.commitTransaction / rollbackTransaction.
+ * @returns     { success, data: sale } (201).
  */
 const createSale = async (request, response, next) => {
     // Begin database transaction
@@ -205,10 +227,16 @@ const createSale = async (request, response, next) => {
 };
 
 /**
- * Voids (cancels) an existing sale
- * Restores inventory and logs the void reason
- * Params: id
- * Body: reason
+ * @description Voids a completed sale, restoring each item's stock and logging a 'return'
+ *              inventory change with the provided reason, all inside a transaction.
+ * @access      Authenticated (manager+ expected).
+ * @triggeredBy No frontend caller today (SalesPage has no void/refund action).
+ * @request     PUT /api/sales/:id/void
+ * @params      Param: id; Body: reason.
+ * @dbOps       TX: Sale.findById (SELECT), Sale.voidSale (UPDATE status='voided'),
+ *              Sale.getSaleItems (SELECT sale_items), Product.updateStock (UPDATE),
+ *              Sale.logInventoryChange (INSERT inventory_logs, type='return'); commit/rollback.
+ * @returns     { success, data: { id, status: 'voided' } }.
  */
 const voidSale = async (request, response, next) => {
     // Begin database transaction
@@ -267,8 +295,13 @@ const voidSale = async (request, response, next) => {
 };
 
 /**
- * Generates invoice data for a sale
- * Params: id
+ * @description Returns a sale's data in JSON form for invoice rendering.
+ * @access      Authenticated.
+ * @triggeredBy No frontend caller today (frontend prints invoices client-side).
+ * @request     GET /api/sales/:id/invoice
+ * @params      Param: id.
+ * @dbOps       Sale.findByIdWithItems → SELECT sales + sale_items.
+ * @returns     { success, message: 'Invoice data', data: sale }.
  */
 const generateInvoice = async (request, response, next) => {
     try {
@@ -292,8 +325,13 @@ const generateInvoice = async (request, response, next) => {
 };
 
 /**
- * Generates HTML receipt for a sale
- * Params: id
+ * @description Returns a printable HTML receipt for a sale.
+ * @access      Authenticated.
+ * @triggeredBy No frontend caller today (POSPage renders its own receipt and uses window.print()).
+ * @request     GET /api/sales/:id/receipt
+ * @params      Param: id.
+ * @dbOps       Sale.findByIdWithItems → SELECT sales + sale_items.
+ * @returns     text/html receipt document.
  */
 const generateReceipt = async (request, response, next) => {
     try {

@@ -11,8 +11,14 @@ const { NotFoundError, ValidationError } = require('../middleware/errorHandler')
 const logger = require('../utils/logger');
 
 /**
- * Get inventory status for all products
- * @route GET /api/inventory
+ * @description Lists per-product stock joined with product metadata; supports keyword search,
+ *              category, and low-stock filtering.
+ * @access      Authenticated.
+ * @triggeredBy InventoryPage list/filter → fetchInventory().
+ * @request     GET /api/inventory
+ * @params      Query: page, limit, low_stock, category_id, search.
+ * @dbOps       Inventory.findAll → SELECT inventory JOIN products.
+ * @returns     paginatedResponse { success, data: inventory, pagination }.
  */
 const getInventory = async (req, res, next) => {
     try {
@@ -46,8 +52,13 @@ const getInventory = async (req, res, next) => {
 };
 
 /**
- * Get inventory change logs
- * @route GET /api/inventory/logs
+ * @description Returns the audit trail of inventory changes with optional product/type/date filters.
+ * @access      Authenticated.
+ * @triggeredBy No frontend caller today (no log-viewing UI).
+ * @request     GET /api/inventory/logs
+ * @params      Query: page, limit, product_id, transaction_type, startDate, endDate.
+ * @dbOps       Inventory.getLogs → SELECT inventory_logs.
+ * @returns     paginatedResponse { success, data: logs, pagination }.
  */
 const getInventoryLogs = async (req, res, next) => {
     try {
@@ -78,8 +89,16 @@ const getInventoryLogs = async (req, res, next) => {
 };
 
 /**
- * Adjust inventory manually
- * @route POST /api/inventory/adjust
+ * @description Applies a manual stock adjustment (add/subtract/set), rejects adjustments that
+ *              would drive stock negative, updates the product's stock, and logs the change.
+ * @access      Manager/Admin.
+ * @triggeredBy InventoryPage Adjust modal → handleAdjustmentSubmit()
+ *              (frontend maps type 'in'/'out' → adjustment_type 'add'/'subtract').
+ * @request     POST /api/inventory/adjust
+ * @params      Body: product_id, adjustment_type ('add'|'subtract'|'set'), quantity, notes?.
+ * @dbOps       Product.findById (SELECT); Product.updateStock (UPDATE quantity_in_stock);
+ *              Inventory.logChange (INSERT inventory_logs, transaction_type='adjustment').
+ * @returns     { success, data: { product_id, quantity_before, quantity_after, adjustment } }.
  */
 const adjustInventory = async (req, res, next) => {
     try {

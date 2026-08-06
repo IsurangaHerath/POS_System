@@ -10,8 +10,13 @@ const { NotFoundError, ConflictError } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
 
 /**
- * Get all suppliers
- * @route GET /api/suppliers
+ * @description Returns all suppliers, optionally filtered by active status.
+ * @access      Authenticated.
+ * @triggeredBy SuppliersPage list and PurchaseOrdersPage supplier dropdown.
+ * @request     GET /api/suppliers
+ * @params      Query: is_active ('true'/'false').
+ * @dbOps       Supplier.findAll → SELECT suppliers.
+ * @returns     { success, data: suppliers[] }.
  */
 const getSuppliers = async (req, res, next) => {
     try {
@@ -26,8 +31,13 @@ const getSuppliers = async (req, res, next) => {
 };
 
 /**
- * Get supplier by ID
- * @route GET /api/suppliers/:id
+ * @description Retrieves a single supplier by ID.
+ * @access      Authenticated.
+ * @triggeredBy No frontend caller today.
+ * @request     GET /api/suppliers/:id
+ * @params      Param: id.
+ * @dbOps       Supplier.findById → SELECT suppliers.
+ * @returns     { success, data: supplier }.
  */
 const getSupplierById = async (req, res, next) => {
     try {
@@ -46,8 +56,13 @@ const getSupplierById = async (req, res, next) => {
 };
 
 /**
- * Create new supplier
- * @route POST /api/suppliers
+ * @description Creates a supplier record.
+ * @access      Manager/Admin.
+ * @triggeredBy SuppliersPage "Add Supplier" → handleSubmit().
+ * @request     POST /api/suppliers
+ * @params      Body: name, contact_person?, phone?, email?, address?, city?, tax_id?, payment_terms?.
+ * @dbOps       Supplier.create (INSERT suppliers); Supplier.findById (SELECT).
+ * @returns     { success, data: supplier } (201).
  */
 const createSupplier = async (req, res, next) => {
     try {
@@ -86,8 +101,13 @@ const createSupplier = async (req, res, next) => {
 };
 
 /**
- * Update supplier
- * @route PUT /api/suppliers/:id
+ * @description Updates an existing supplier's fields.
+ * @access      Manager/Admin.
+ * @triggeredBy SuppliersPage edit modal → handleSubmit().
+ * @request     PUT /api/suppliers/:id
+ * @params      Param: id; Body: any updatable supplier fields.
+ * @dbOps       Supplier.findById (SELECT); Supplier.update (UPDATE suppliers).
+ * @returns     { success, data: supplier }.
  */
 const updateSupplier = async (req, res, next) => {
     try {
@@ -115,8 +135,14 @@ const updateSupplier = async (req, res, next) => {
 };
 
 /**
- * Delete supplier
- * @route DELETE /api/suppliers/:id
+ * @description Deletes a supplier, blocking deletion when linked purchase orders exist
+ *              (deactivate instead in that case).
+ * @access      Manager/Admin.
+ * @triggeredBy SuppliersPage delete confirmation → handleDelete().
+ * @request     DELETE /api/suppliers/:id
+ * @params      Param: id.
+ * @dbOps       Supplier.findById (SELECT); Supplier.hasPurchaseOrders (SELECT); Supplier.delete.
+ * @returns     { success, message: 'Supplier deleted successfully' }.
  */
 const deleteSupplier = async (req, res, next) => {
     try {

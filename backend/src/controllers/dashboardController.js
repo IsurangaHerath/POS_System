@@ -11,8 +11,15 @@ const PurchaseOrder = require('../models/PurchaseOrder');
 const { successResponse } = require('../utils/response');
 
 /**
- * Get dashboard summary statistics
- * @route GET /api/dashboard/summary
+ * @description Aggregates the dashboard KPI payload: today's sales (total/transactions/cash/card),
+ *              current month totals, inventory stats (products, low stock, out of stock), and pending orders.
+ * @access      Authenticated.
+ * @triggeredBy DashboardPage load (parallel Promise.all batch).
+ * @request     GET /api/dashboard/summary
+ * @params      none.
+ * @dbOps       Sale.getDailySummary, Sale.getMonthlySummary, Product.getTotalCount,
+ *              Inventory.getLowStockCount, Inventory.getOutOfStockCount, PurchaseOrder.getPendingCount.
+ * @returns     { success, data: { today, month, inventory, pending_orders } }.
  */
 const getSummary = async (req, res, next) => {
     try {
@@ -61,8 +68,14 @@ const getSummary = async (req, res, next) => {
 };
 
 /**
- * Get sales chart data
- * @route GET /api/dashboard/sales-chart
+ * @description Builds label/value chart series for completed sales across a requested period
+ *              ('day' hourly, 'week' daily, 'month' daily, 'year' monthly).
+ * @access      Authenticated.
+ * @triggeredBy No frontend caller today — SalesChart.jsx is not rendered (see PROJECT_INTERACTION_MAPPING.md §14 #5).
+ * @request     GET /api/dashboard/sales-chart
+ * @params      Query: period ('day'|'week'|'month'|'year').
+ * @dbOps       Raw aggregate SELECT over sales grouped by HOUR/DATE/DAY/MONTH(sale_date) WHERE status='completed'.
+ * @returns     { success, data: { labels: string[], datasets: [{ label: 'Sales', data }] } }.
  */
 const getSalesChartData = async (req, res, next) => {
     try {
@@ -161,8 +174,14 @@ const getSalesChartData = async (req, res, next) => {
 };
 
 /**
- * Get top selling products
- * @route GET /api/dashboard/top-products
+ * @description Returns the top-selling products by quantity/revenue for the dashboard widget,
+ *              optionally scoped to a time period (day/week/month/year).
+ * @access      Authenticated.
+ * @triggeredBy DashboardPage load → TopProducts widget.
+ * @request     GET /api/dashboard/top-products
+ * @params      Query: limit (default 10), period (default 'month').
+ * @dbOps       Sale.getTopProducts → aggregated SELECT over sale_items/sales.
+ * @returns     { success, data: products[] }.
  */
 const getTopProducts = async (req, res, next) => {
     try {
@@ -206,8 +225,13 @@ const getTopProducts = async (req, res, next) => {
 };
 
 /**
- * Get low stock alerts
- * @route GET /api/dashboard/low-stock
+ * @description Returns products at/below their reorder level for the low-stock alert widget.
+ * @access      Authenticated.
+ * @triggeredBy DashboardPage load → LowStockAlert widget.
+ * @request     GET /api/dashboard/low-stock
+ * @params      none.
+ * @dbOps       Product.getLowStock → SELECT products WHERE quantity_in_stock <= reorder_level.
+ * @returns     { success, data: alerts[] }.
  */
 const getLowStockAlerts = async (req, res, next) => {
     try {
@@ -229,8 +253,13 @@ const getLowStockAlerts = async (req, res, next) => {
 };
 
 /**
- * Get recent sales
- * @route GET /api/dashboard/recent-sales
+ * @description Returns the most recent completed sales for the recent-transactions widget.
+ * @access      Authenticated.
+ * @triggeredBy DashboardPage load → RecentSales widget.
+ * @request     GET /api/dashboard/recent-sales
+ * @params      Query: limit (default 10).
+ * @dbOps       Sale.findAll (status='completed') → SELECT sales ORDER BY sale_date DESC LIMIT n.
+ * @returns     { success, data: recentSales[] }.
  */
 const getRecentSales = async (req, res, next) => {
     try {

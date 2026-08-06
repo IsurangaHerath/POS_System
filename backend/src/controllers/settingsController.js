@@ -10,8 +10,13 @@ const { NotFoundError } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
 
 /**
- * Get all settings
- * @route GET /api/settings
+ * @description Returns every system setting ordered by key.
+ * @access      Admin (route middleware).
+ * @triggeredBy No frontend caller today.
+ * @request     GET /api/settings
+ * @params      none.
+ * @dbOps       SELECT * FROM settings.
+ * @returns     { success, data: settings[] }.
  */
 const getSettings = async (req, res, next) => {
     try {
@@ -25,8 +30,13 @@ const getSettings = async (req, res, next) => {
 };
 
 /**
- * Get setting by key
- * @route GET /api/settings/:key
+ * @description Returns a single setting by its key.
+ * @access      Admin (route middleware).
+ * @triggeredBy No frontend caller today.
+ * @request     GET /api/settings/:key
+ * @params      Param: key.
+ * @dbOps       SELECT * FROM settings WHERE setting_key = ?.
+ * @returns     { success, data: setting }.
  */
 const getSettingByKey = async (req, res, next) => {
     try {
@@ -46,8 +56,14 @@ const getSettingByKey = async (req, res, next) => {
 };
 
 /**
- * Update setting
- * @route PUT /api/settings/:key
+ * @description Upserts a setting value by key (insert if missing, update otherwise).
+ *              NOTE: exported but NO route registers it — currently dead code.
+ * @access      Admin.
+ * @triggeredBy No caller (no route mounted).
+ * @request     PUT /api/settings/:key (never registered in settings.routes.js)
+ * @params      Param: key; Body: value.
+ * @dbOps       SELECT settings; INSERT INTO settings / UPDATE settings SET setting_value.
+ * @returns     Delegates to getSettingByKey → { success, data: setting }.
  */
 const updateSetting = async (req, res, next) => {
     try {
@@ -78,8 +94,14 @@ const updateSetting = async (req, res, next) => {
 };
 
 /**
- * Get currency settings
- * @route GET /api/settings/currency
+ * @description Returns the active currency configuration (code + symbol) with USD/$ defaults,
+ *              used across the app for price formatting.
+ * @access      Public (no auth — required before login to render prices correctly).
+ * @triggeredBy CurrencyContext provider on app mount.
+ * @request     GET /api/settings/currency
+ * @params      none.
+ * @dbOps       SELECT * FROM settings WHERE setting_key IN ('currency_code', 'currency_symbol').
+ * @returns     { success, data: { currency_code, currency_symbol } }.
  */
 const getCurrencySettings = async (req, res, next) => {
     try {
@@ -107,8 +129,13 @@ const getCurrencySettings = async (req, res, next) => {
 };
 
 /**
- * Update currency settings
- * @route PUT /api/settings/currency
+ * @description Upserts the currency code/symbol settings (admin-only) and returns the fresh values.
+ * @access      Admin (route middleware).
+ * @triggeredBy SettingsPage → Save Currency → handleSaveCurrency().
+ * @request     PUT /api/settings/currency
+ * @params      Body: currency_code, currency_symbol?.
+ * @dbOps       SELECT settings per key; INSERT INTO settings / UPDATE settings SET setting_value.
+ * @returns     Delegates to getCurrencySettings → { success, data: { currency_code, currency_symbol } }.
  */
 const updateCurrencySettings = async (req, res, next) => {
     try {

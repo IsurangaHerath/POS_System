@@ -10,8 +10,13 @@ const { NotFoundError, ConflictError } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
 
 /**
- * Get all categories
- * @route GET /api/categories
+ * @description Returns all categories built as a parent/child tree for hierarchical UI.
+ * @access      Authenticated.
+ * @triggeredBy CategoriesPage, ProductsPage filter, POSPage catalog, PurchaseOrdersPage item picker.
+ * @request     GET /api/categories
+ * @params      none.
+ * @dbOps       Category.findAllTree → SELECT categories + child assembly.
+ * @returns     { success, data: categories[] }.
  */
 const getCategories = async (req, res, next) => {
     try {
@@ -24,8 +29,13 @@ const getCategories = async (req, res, next) => {
 };
 
 /**
- * Get category by ID
- * @route GET /api/categories/:id
+ * @description Retrieves a single category by ID.
+ * @access      Authenticated.
+ * @triggeredBy No frontend caller today.
+ * @request     GET /api/categories/:id
+ * @params      Param: id.
+ * @dbOps       Category.findById → SELECT categories.
+ * @returns     { success, data: category }.
  */
 const getCategoryById = async (req, res, next) => {
     try {
@@ -44,8 +54,13 @@ const getCategoryById = async (req, res, next) => {
 };
 
 /**
- * Create new category
- * @route POST /api/categories
+ * @description Creates a category with an optional parent for hierarchy support.
+ * @access      Manager/Admin.
+ * @triggeredBy CategoriesPage "Add Category" → handleSubmit().
+ * @request     POST /api/categories
+ * @params      Body: name, description?, parent_id?.
+ * @dbOps       Category.nameExists (SELECT); Category.create (INSERT categories); Category.findById (SELECT).
+ * @returns     { success, data: category } (201).
  */
 const createCategory = async (req, res, next) => {
     try {
@@ -76,8 +91,14 @@ const createCategory = async (req, res, next) => {
 };
 
 /**
- * Update category
- * @route PUT /api/categories/:id
+ * @description Updates a category (rename/re-parent/activate); prevents a category from
+ *              being set as its own parent and enforces unique names.
+ * @access      Manager/Admin.
+ * @triggeredBy CategoriesPage edit modal → handleSubmit().
+ * @request     PUT /api/categories/:id
+ * @params      Param: id; Body: name?, description?, parent_id?, is_active?.
+ * @dbOps       Category.findById (SELECT); Category.nameExists (SELECT); Category.update (UPDATE categories).
+ * @returns     { success, data: category }.
  */
 const updateCategory = async (req, res, next) => {
     try {
@@ -124,8 +145,13 @@ const updateCategory = async (req, res, next) => {
 };
 
 /**
- * Delete category
- * @route DELETE /api/categories/:id
+ * @description Deletes a category only when it has no products and no child categories.
+ * @access      Manager/Admin.
+ * @triggeredBy CategoriesPage delete confirmation → handleDelete().
+ * @request     DELETE /api/categories/:id
+ * @params      Param: id.
+ * @dbOps       Category.findById (SELECT); Category.hasProducts / Category.hasChildren (SELECT); Category.delete.
+ * @returns     { success, message: 'Category deleted successfully' }.
  */
 const deleteCategory = async (req, res, next) => {
     try {
