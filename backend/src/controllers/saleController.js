@@ -12,6 +12,8 @@
 // Model and utility imports
 const Sale = require('../models/Sale');
 const Product = require('../models/Product');
+const Customer = require('../models/Customer');
+const CashRegister = require('../models/CashRegister');
 const { 
     successResponse, 
     createdResponse, 
@@ -112,12 +114,15 @@ const createSale = async (request, response, next) => {
     const tx = await database.beginTransaction();
     
     try {
-        const { 
-            items, 
-            payment_method, 
-            amount_paid, 
-            discount_amount = 0, 
-            notes 
+        const {
+            items,
+            payment_method,
+            amount_paid,
+            discount_amount = 0,
+            discount_type = 'fixed',
+            payments = [],
+            customer_id = null,
+            notes
         } = request.body;
         
         const userId = request.user.id;
@@ -148,10 +153,11 @@ const createSale = async (request, response, next) => {
                 );
             }
 
-            // Calculate item amounts
-            const itemSubtotal = product.selling_price * item.quantity;
+            // Calculate item amounts (allow client-provided price override for discounts)
+            const itemPrice = Number(item.unit_price) || Number(product.selling_price);
+            const itemSubtotal = itemPrice * item.quantity;
             const itemTax = (itemSubtotal * (product.tax_rate || 0)) / 100;
-            const itemDiscount = item.discount || 0;
+            const itemDiscount = Number(item.discount) || 0;
 
             // Accumulate totals
             subtotal += itemSubtotal;
@@ -162,17 +168,64 @@ const createSale = async (request, response, next) => {
                 product_id: product.id,
                 product_name: product.name,
                 product_barcode: product.barcode,
-                unit_price: product.selling_price,
+                unit_price: itemPrice,
                 quantity: item.quantity,
-                subtotal: itemSubtotal,
+                subtotal: itemSubtotal - itemDiscount,
                 discount: itemDiscount,
                 tax_amount: itemTax
             });
         }
 
-        // Calculate final amounts
-        const totalAmount = subtotal + totalTax - discount_amount;
-        const changeAmount = amount_paid - totalAmount;
+        // Invoice-level discount (fixed amount or percentage of subtotal)
+        let invoiceDiscount = Number(discount_amount) || 0;
+        if (discount_type === 'percent') {
+            invoiceDiscount = (subtotal * (Number(discount_amount) || 0)) / 100;
+        }
+
+        // Final sale total
+        const totalAmount = subtotal + totalTax - invoiceDiscount;
+        const roundedTotal = Math.round(totalAmount * 100) / 100;
+
+        // ---- Payment reconciliation (cash / card / bank / QR / credit / mixed) ----
+        let totalPaid = 0;
+        let creditAmount = 0;
+        let cashPaid = 0;
+        let effectiveMethod = payment_method;
+
+        if (payments && payments.length > 0) {
+            for (const p of payments) {
+                const amt = Number(p.amount) || 0;
+                totalPaid += amt;
+                if (p.method === 'cash') cashPaid += amt;
+                if (p.method === 'credit') creditAmount += amt;
+            }
+            const nonCreditMethods = payments.filter((p) => p.method !== 'credit');
+            effectiveMethod = nonCreditMethods.length > 1
+                ? 'mixed'
+                : (nonCreditMethods.length === 1 ? nonCreditMethods[0].method : 'credit');
+        } else if (payment_method === 'credit') {
+            creditAmount = roundedTotal;
+            totalPaid = 0;
+        } else {
+            totalPaid = Number(amount_paid) || roundedTotal;
+            if (payment_method === 'cash') cashPaid = totalPaid;
+        }
+
+        const amountDue = Math.max(0, roundedTotal - totalPaid);
+        const changeAmount = totalPaid > roundedTotal ? totalPaid - roundedTotal : 0;
+
+        // ---- Credit / udharata handling ----
+        if (customer_id && amountDue > 0) {
+            const customer = await Customer.findById(customer_id);
+            if (!customer) {
+                throw new NotFoundError('Customer not found');
+            }
+            const newBalance = (Number(customer.balance) || 0) + amountDue;
+            if (Number(customer.credit_limit) > 0 && newBalance > Number(customer.credit_limit)) {
+                throw new ValidationError('Credit sale exceeds customer credit limit');
+            }
+            await Customer.adjustBalance(customer_id, amountDue, tx);
+        }
 
         // Generate unique invoice number
         const invoiceNumber = await Sale.generateInvoiceNumber(tx);
@@ -183,13 +236,37 @@ const createSale = async (request, response, next) => {
             user_id: userId,
             subtotal,
             tax_amount: totalTax,
-            discount_amount,
+            discount_amount: invoiceDiscount,
+            invoice_discount_amount: invoiceDiscount,
+            discount_type,
+            rounded_total: roundedTotal,
+            amount_due: amountDue,
             total_amount: totalAmount,
-            payment_method,
-            amount_paid,
-            change_amount: changeAmount > 0 ? changeAmount : 0,
+            payment_method: effectiveMethod,
+            amount_paid: totalPaid,
+            change_amount: changeAmount,
+            customer_id,
             notes
         }, tx);
+
+        // Persist individual payment records
+        if (payments && payments.length > 0) {
+            for (const p of payments) {
+                await database.query(
+                    `INSERT INTO payments (payment_type, sale_id, amount, method, user_id)
+                     VALUES ('sale', ?, ?, ?, ?)`,
+                    [saleId, Number(p.amount) || 0, p.method, userId],
+                    tx
+                );
+            }
+        } else {
+            await database.query(
+                `INSERT INTO payments (payment_type, sale_id, amount, method, user_id)
+                 VALUES ('sale', ?, ?, ?, ?)`,
+                [saleId, creditAmount > 0 ? roundedTotal : totalPaid, effectiveMethod, userId],
+                tx
+            );
+        }
 
         // Create sale items and update inventory
         for (const saleItem of saleItemList) {
@@ -209,6 +286,14 @@ const createSale = async (request, response, next) => {
                 null,
                 tx
             );
+        }
+
+        // Record cash movement if a cash register is open for this cashier
+        if (cashPaid > 0) {
+            const openRegister = await CashRegister.findOpenByUser(userId);
+            if (openRegister) {
+                await CashRegister.addEntry(openRegister.id, 'sale', cashPaid, saleId, null, tx);
+            }
         }
 
         // Commit the transaction

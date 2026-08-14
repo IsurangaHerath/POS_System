@@ -1,0 +1,1190 @@
+# ROLE
+
+Act as a **senior Sri Lankan POS software architect, retail-domain expert, UX/UI designer, database architect, full-stack engineer, security engineer, QA engineer, and product researcher**.
+
+I already have an existing POS system.
+
+Your job is to transform my existing system into a **modern, commercial-grade, Sri Lankan web-based POS system**.
+
+Do NOT create a completely separate application.
+
+Do NOT use Electron.js.
+
+Do NOT add Electron.js.
+
+Do NOT create a desktop Electron application.
+
+The final system must be a **web application**.
+
+---
+
+# EXISTING TECHNOLOGY STACK
+
+My existing project uses:
+
+* React
+* Vite
+* Node.js
+* Express.js
+* MySQL
+* JavaScript/TypeScript where already used
+
+Repository:
+
+[PASTE GITHUB REPOSITORY URL HERE]
+
+First inspect the actual repository and understand the existing architecture.
+
+Do not assume the architecture.
+
+---
+
+# CORE OBJECTIVE
+
+Transform:
+
+**Existing POS System**
+
+into:
+
+**Modern Sri Lankan Commercial Web POS**
+
+The final application should be suitable for businesses such as:
+
+* grocery shops
+* mini supermarkets
+* retail stores
+* clothing shops
+* electronics shops
+* hardware shops
+* general stores
+* small and medium businesses
+
+The system should support real-world Sri Lankan business workflows.
+
+---
+
+# IMPORTANT — WEB ONLY
+
+This project must remain a web application.
+
+DO NOT use:
+
+* Electron.js
+* Electron main process
+* Electron renderer process
+* Electron IPC
+* Electron packaging
+* Electron-specific APIs
+
+Instead use standard web technologies.
+
+For printing, use browser-compatible approaches such as:
+
+* browser print
+* print-friendly receipt pages
+* thermal-printer-compatible browser printing where realistically possible
+* PDF generation where appropriate
+
+Do not pretend browser applications have unrestricted access to local printers.
+
+---
+
+# PHASE 1 — INSPECT EXISTING PROJECT
+
+Before changing anything:
+
+Inspect:
+
+## Frontend
+
+* React structure
+* Vite configuration
+* routing
+* components
+* pages
+* state management
+* API integration
+* forms
+* tables
+* modals
+* POS screen
+* dashboard
+* reports
+* settings
+* authentication
+* responsive design
+
+## Backend
+
+Inspect:
+
+* Express server
+* routes
+* controllers
+* services
+* middleware
+* authentication
+* authorization
+* validation
+* error handling
+* database queries
+
+## MySQL
+
+Inspect:
+
+* tables
+* relationships
+* primary keys
+* foreign keys
+* indexes
+* constraints
+* transaction handling
+
+## Existing features
+
+Determine which features are:
+
+* complete
+* partially implemented
+* broken
+* missing
+* poorly designed
+* inefficient
+* insecure
+
+Do not modify anything during the initial audit.
+
+---
+
+# PHASE 2 — SRI LANKAN POS REQUIREMENTS
+
+Research modern POS systems used in Sri Lanka and identify common functionality expected by Sri Lankan businesses.
+
+Separate requirements into:
+
+### General POS requirements
+
+and
+
+### Sri Lanka-specific requirements
+
+Pay particular attention to:
+
+* LKR
+* cash-based businesses
+* credit/udharata sales
+* customer balances
+* local phone numbers
+* Sinhala support
+* Tamil support
+* English support
+* local date/time
+* barcode scanning
+* thermal receipts
+* discounts
+* stock management
+* supplier management
+* cashier management
+* daily cash closing
+
+Do not blindly copy another POS system.
+
+Identify common patterns and implement appropriate functionality.
+
+---
+
+# PHASE 3 — CURRENT VS TARGET GAP ANALYSIS
+
+Create a feature comparison internally:
+
+| Feature | Existing System | Sri Lankan POS Requirement | Gap | Priority |
+| ------- | --------------- | -------------------------- | --- | -------- |
+
+Use:
+
+P0 = Critical
+P1 = Important
+P2 = Useful
+P3 = Optional
+
+Implement P0 and P1 features first.
+
+---
+
+# PHASE 4 — POS CHECKOUT
+
+Build a fast professional POS checkout interface.
+
+It should support:
+
+* product search
+* barcode search
+* SKU search
+* category filtering
+* product grid
+* cart
+* quantity changes
+* remove item
+* clear cart
+* item discount
+* invoice discount
+* percentage discount
+* fixed discount
+* tax
+* subtotal
+* total
+* rounding
+* customer selection
+* cash payment
+* card payment
+* bank transfer
+* QR payment
+* mixed payment
+* credit sale
+* hold bill
+* resume bill
+* sale cancellation
+* returns
+* receipt printing
+
+The checkout process should require as few clicks as realistically possible.
+
+---
+
+# PHASE 5 — PAYMENT SYSTEM
+
+Implement configurable payment methods.
+
+At minimum:
+
+* Cash
+* Card
+* Bank Transfer
+* QR
+* Credit
+
+Support mixed payments.
+
+Example:
+
+Total:
+
+LKR 5,500
+
+Cash:
+
+LKR 2,000
+
+Card:
+
+LKR 3,500
+
+System should verify:
+
+Cash + Card = Total
+
+For cash payments calculate:
+
+Amount received
+→ Change
+
+All financial calculations must be authoritative on the backend.
+
+---
+
+# PHASE 6 — CREDIT / UDARATA
+
+This is an important Sri Lankan retail workflow.
+
+Implement:
+
+* credit sales
+* customer balance
+* partial payments
+* full payments
+* payment history
+* customer statement
+* outstanding balance
+* credit limit
+* overdue balance
+* credit reports
+
+Example:
+
+Previous balance:
+
+LKR 20,000
+
+New credit sale:
+
+LKR 5,000
+
+New balance:
+
+LKR 25,000
+
+Payment:
+
+LKR 10,000
+
+Remaining:
+
+LKR 15,000
+
+Use database transactions.
+
+---
+
+# PHASE 7 — INVENTORY
+
+Implement/improve:
+
+* products
+* categories
+* brands
+* units
+* SKU
+* barcode
+* purchase price
+* selling price
+* wholesale price where appropriate
+* stock quantity
+* minimum stock
+* reorder level
+* stock adjustments
+* stock movements
+* stock history
+* low-stock alerts
+* out-of-stock alerts
+* damaged stock
+* stock transfers where appropriate
+
+Where useful:
+
+* product variants
+* sizes
+* colors
+* batches
+* expiry dates
+
+Do not introduce unnecessary complexity.
+
+---
+
+# PHASE 8 — PURCHASING
+
+Implement:
+
+* suppliers
+* purchase orders
+* purchases
+* purchase invoices
+* received quantities
+* partial receiving
+* purchase returns
+* supplier balances
+* purchase history
+* cost tracking
+
+Purchasing must correctly update inventory.
+
+Use transactions.
+
+---
+
+# PHASE 9 — CUSTOMERS
+
+Implement:
+
+* customer registration
+* customer code
+* name
+* phone
+* email
+* address
+* purchase history
+* total spending
+* outstanding balance
+* credit limit
+* customer discounts where appropriate
+
+Allow customer selection directly during checkout.
+
+---
+
+# PHASE 10 — SUPPLIERS
+
+Implement:
+
+* supplier CRUD
+* contact details
+* purchase history
+* outstanding balance
+* supplier payments
+* supplier statements
+
+---
+
+# PHASE 11 — USERS AND PERMISSIONS
+
+Implement role-based access control.
+
+Suggested roles:
+
+* Owner
+* Administrator
+* Manager
+* Cashier
+* Inventory Manager
+* Accountant
+
+Permissions should control:
+
+* sales
+* discounts
+* refunds
+* product changes
+* stock adjustments
+* purchasing
+* reports
+* expenses
+* customer credit
+* user management
+* settings
+
+Do not rely on frontend authorization.
+
+Backend must enforce permissions.
+
+---
+
+# PHASE 12 — CASH REGISTER
+
+Implement:
+
+## Opening
+
+Cashier enters opening cash.
+
+## During shift
+
+Track:
+
+* cash sales
+* cash refunds
+* cash expenses
+* cash withdrawals
+* cash additions
+
+## Closing
+
+Calculate:
+
+Expected cash
+
+versus
+
+Actual cash
+
+Show:
+
+* surplus
+* shortage
+* variance
+
+Store the complete shift history.
+
+---
+
+# PHASE 13 — EXPENSES
+
+Implement:
+
+* expense categories
+* expense creation
+* amount
+* date
+* description
+* payment method
+* employee
+* reference/receipt
+
+Reports should include expenses.
+
+---
+
+# PHASE 14 — RETURNS
+
+Implement professional return workflows.
+
+Support:
+
+* full sale return
+* partial item return
+* quantity return
+* refund
+* store credit
+* exchange where appropriate
+
+Never simply delete the original sale.
+
+Maintain an audit trail.
+
+---
+
+# PHASE 15 — REPORTING
+
+Create a professional reporting module.
+
+## Sales
+
+* daily
+* weekly
+* monthly
+* yearly
+* custom date range
+* cashier
+* product
+* category
+* payment method
+* returns
+* cancelled sales
+
+## Inventory
+
+* current stock
+* low stock
+* out of stock
+* stock movement
+* stock valuation
+* dead stock
+
+## Customers
+
+* top customers
+* customer purchases
+* outstanding credit
+* payment history
+
+## Suppliers
+
+* purchase history
+* outstanding balances
+
+## Financial
+
+Where data supports it:
+
+* revenue
+* cost
+* gross profit
+* expenses
+* estimated net profit
+
+Never invent profit calculations when required cost information is missing.
+
+---
+
+# PHASE 16 — DASHBOARD
+
+Create a professional business dashboard.
+
+Include useful KPIs:
+
+* Today's sales
+* Today's transactions
+* Gross profit
+* Outstanding credit
+* Low-stock products
+* Top products
+* Recent sales
+* Recent purchases
+* Payment method breakdown
+* Sales trend
+* Cashier performance
+
+Provide date filtering.
+
+Avoid unnecessary decorative charts.
+
+---
+
+# PHASE 17 — BARCODE
+
+Support normal USB barcode scanners.
+
+Most USB barcode scanners behave like keyboards.
+
+Optimize the application for this workflow:
+
+Scanner
+→ barcode input
+→ product lookup
+→ product added to cart
+
+Prevent duplicate barcode assignment.
+
+Allow barcode management.
+
+---
+
+# PHASE 18 — RECEIPTS
+
+Since this is a web application, implement browser-compatible receipt printing.
+
+Create a print-friendly receipt layout.
+
+Support:
+
+* business name
+* logo
+* address
+* phone
+* invoice number
+* date
+* time
+* cashier
+* customer
+* items
+* quantities
+* prices
+* discounts
+* taxes
+* subtotal
+* total
+* payment
+* change
+* balance
+* footer
+
+Provide:
+
+**Print Receipt**
+
+using browser print functionality.
+
+Also provide:
+
+**Invoice Preview**
+
+and where appropriate:
+
+**Download PDF**
+
+Do not use Electron printing APIs.
+
+---
+
+# PHASE 19 — SRI LANKAN LOCALIZATION
+
+Support:
+
+## Currency
+
+LKR
+
+## Languages
+
+Design the architecture so the system can support:
+
+* English
+* Sinhala
+* Tamil
+
+Do not hard-code every UI string.
+
+Use a proper localization architecture.
+
+Ensure MySQL uses Unicode-compatible character encoding.
+
+Support Sri Lankan:
+
+* phone number formats
+* addresses
+* date/time
+* currency formatting
+
+---
+
+# PHASE 20 — OFFLINE / NETWORK RESILIENCE
+
+Because POS systems should continue functioning during temporary connectivity problems, analyze whether an appropriate local-first strategy can be implemented in the browser.
+
+Possible approaches may include:
+
+* local caching
+* IndexedDB
+* service workers
+* queued operations
+* synchronization
+
+However:
+
+DO NOT build an unnecessarily complicated distributed synchronization system.
+
+If full offline transactions are not practical with the current architecture, clearly identify the limitation and implement the most reliable practical solution.
+
+---
+
+# PHASE 21 — UX/UI DESIGN
+
+Redesign the system using modern commercial POS UX principles.
+
+The UI should be:
+
+* professional
+* clean
+* fast
+* intuitive
+* desktop-first
+* keyboard-friendly
+* touch-friendly
+* accessible
+* responsive
+
+Avoid:
+
+* excessive animations
+* unnecessary gradients
+* excessive cards
+* confusing navigation
+* giant forms
+* excessive modal dialogs
+
+---
+
+# POS SCREEN
+
+Prioritize cashier speed.
+
+Suggested layout:
+
+### Left
+
+* search
+* barcode input
+* categories
+* products
+
+### Right
+
+* cart
+* customer
+* discounts
+* subtotal
+* total
+* payment
+
+### Bottom
+
+* Hold
+* Clear
+* Return
+* Pay
+
+But inspect the existing system and choose the best layout rather than blindly following this example.
+
+---
+
+# MAIN NAVIGATION
+
+Consider:
+
+* Dashboard
+* POS
+* Sales
+* Purchases
+* Products
+* Inventory
+* Customers
+* Suppliers
+* Expenses
+* Reports
+* Employees
+* Settings
+
+Only expose sections according to user permissions.
+
+---
+
+# PHASE 22 — DATABASE
+
+Review the existing MySQL architecture.
+
+Potential entities:
+
+* users
+* roles
+* permissions
+* products
+* categories
+* brands
+* units
+* inventory
+* stock_movements
+* customers
+* suppliers
+* sales
+* sale_items
+* payments
+* purchases
+* purchase_items
+* returns
+* return_items
+* expenses
+* cash_registers
+* shifts
+* quotations
+* settings
+* audit_logs
+
+Do NOT automatically create all of these.
+
+Only add tables justified by the actual requirements.
+
+Use:
+
+* foreign keys
+* indexes
+* constraints
+* transactions
+
+Preserve existing data.
+
+Use migrations.
+
+Do not perform destructive migrations without explicit justification.
+
+---
+
+# PHASE 23 — SECURITY
+
+Audit and fix:
+
+* SQL injection
+* authentication
+* authorization
+* password storage
+* API security
+* XSS
+* CSRF where applicable
+* exposed secrets
+* insecure local storage
+* privilege escalation
+
+Passwords must never be stored in plaintext.
+
+Database credentials must never be exposed to the React frontend.
+
+Backend must enforce all sensitive permissions.
+
+---
+
+# PHASE 24 — AUDIT LOGGING
+
+Track important actions:
+
+* sale void
+* sale return
+* price change
+* stock adjustment
+* product deletion
+* discount override
+* user creation
+* permission change
+* cash withdrawal
+* customer credit payment
+
+Record:
+
+* user
+* action
+* timestamp
+* affected record
+* relevant information
+
+---
+
+# PHASE 25 — PERFORMANCE
+
+Optimize:
+
+* barcode lookup
+* product search
+* customer search
+* sales history
+* dashboard
+* reports
+
+Use:
+
+* database indexes
+* pagination
+* server-side filtering
+* debounced search
+* efficient SQL
+* caching where appropriate
+
+Never load huge datasets unnecessarily into React.
+
+---
+
+# PHASE 26 — API ARCHITECTURE
+
+Keep frontend and backend properly separated.
+
+Use clean REST APIs where appropriate.
+
+Example:
+
+GET /api/products
+
+POST /api/products
+
+PUT /api/products/:id
+
+DELETE /api/products/:id
+
+POST /api/sales
+
+GET /api/sales
+
+POST /api/sales/:id/return
+
+POST /api/customers/:id/payments
+
+POST /api/purchases
+
+GET /api/reports/sales
+
+etc.
+
+Follow the existing project's conventions instead of blindly replacing them.
+
+---
+
+# PHASE 27 — ERROR HANDLING
+
+Every major operation should handle:
+
+* loading
+* success
+* validation errors
+* server errors
+* network errors
+* empty states
+
+Display understandable messages.
+
+Do not expose raw SQL errors to users.
+
+---
+
+# PHASE 28 — TESTING
+
+Test:
+
+## Authentication
+
+* login
+* logout
+* invalid credentials
+* permissions
+
+## Products
+
+* create
+* edit
+* delete
+* search
+* barcode
+* stock
+
+## Sales
+
+* cash
+* card
+* mixed payment
+* discount
+* credit
+* hold
+* resume
+* return
+* receipt
+
+## Inventory
+
+* purchase
+* sale
+* stock adjustment
+* stock movement
+
+## Customers
+
+* create
+* purchase history
+* credit
+* payment
+* statement
+
+## Reports
+
+Verify calculations against database records.
+
+## Security
+
+Attempt unauthorized actions.
+
+---
+
+# PHASE 29 — RESPONSIVE DESIGN
+
+The primary target is desktop/laptop POS usage.
+
+However, the application should also work reasonably on:
+
+* tablets
+* smaller screens
+
+Do not sacrifice the desktop cashier experience merely to make everything mobile-first.
+
+---
+
+# PHASE 30 — DO NOT REWRITE UNNECESSARILY
+
+This is extremely important.
+
+If an existing feature already works correctly:
+
+KEEP IT.
+
+Improve it only when there is a clear reason.
+
+Do not:
+
+* replace React
+* replace Vite
+* replace Express
+* replace MySQL
+* introduce Electron
+* rebuild the entire project
+* change architecture unnecessarily
+
+Work with the existing project.
+
+---
+
+# IMPLEMENTATION WORKFLOW
+
+Follow this order:
+
+1. Inspect repository.
+2. Run current application.
+3. Inspect database.
+4. Document current architecture.
+5. Identify current features.
+6. Research Sri Lankan POS requirements.
+7. Create gap analysis.
+8. Prioritize features.
+9. Design UX/UI.
+10. Implement database migrations.
+11. Implement backend.
+12. Implement frontend.
+13. Implement browser printing.
+14. Implement localization architecture.
+15. Implement security improvements.
+16. Implement reports.
+17. Test all major workflows.
+18. Fix errors.
+19. Build production version.
+20. Perform final UX review.
+
+---
+
+# FINAL REQUIREMENT
+
+Do NOT simply tell me what I should build.
+
+I want you to **inspect and modify the actual existing project**.
+
+Implement the features directly.
+
+Do not create fake buttons.
+
+Do not create placeholder pages.
+
+Do not say "this can be implemented later" for features that you can reasonably implement now.
+
+Every important button should perform a real operation.
+
+Every financial operation must correctly update the database.
+
+The final result should be:
+
+**A modern, professional, Sri Lankan-focused WEB POS system built on my existing React + Vite + Node.js + Express + MySQL project, WITHOUT Electron.js.**
+
+---
+
+# FINAL REPORT
+
+After implementation provide:
+
+### Existing System
+
+What was already present.
+
+### Sri Lankan Requirements
+
+What requirements were identified.
+
+### Gap Analysis
+
+What was missing.
+
+### Implemented Features
+
+Everything actually implemented.
+
+### Database Changes
+
+Tables, columns, indexes, relationships and migrations.
+
+### Backend Changes
+
+Routes, controllers, services and APIs.
+
+### Frontend Changes
+
+Pages, components and UX improvements.
+
+### Printing
+
+Explain the browser-based receipt/invoice printing implementation.
+
+### Security
+
+Security improvements.
+
+### Testing
+
+What was tested and results.
+
+### Remaining Limitations
+
+Be honest.
+
+### Run Instructions
+
+Provide exact commands to run:
+
+Backend
+
+Frontend
+
+Database
+
+Production build
+
+The application must be runnable without Electron.js.

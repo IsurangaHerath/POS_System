@@ -8,24 +8,31 @@ class Sale {
             subtotal,
             tax_amount,
             discount_amount,
+            invoice_discount_amount = 0,
+            discount_type = 'fixed',
+            rounded_total = 0,
+            amount_due = 0,
             total_amount,
             payment_method,
             amount_paid,
             change_amount,
+            customer_id = null,
             notes = null
         } = saleData;
 
         const sql = `
       INSERT INTO sales (
         invoice_number, user_id, subtotal, tax_amount, discount_amount,
-        total_amount, payment_method, amount_paid, change_amount, notes, sale_date
+        invoice_discount_amount, discount_type, rounded_total, amount_due,
+        total_amount, payment_method, amount_paid, change_amount, customer_id, notes, sale_date
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `;
 
         const result = await db.query(sql, [
             invoice_number, user_id, subtotal, tax_amount, discount_amount,
-            total_amount, payment_method, amount_paid, change_amount, notes
+            invoice_discount_amount, discount_type, rounded_total, amount_due,
+            total_amount, payment_method, amount_paid, change_amount, customer_id, notes
         ], tx);
 
         return result.insertId;
@@ -61,9 +68,10 @@ class Sale {
 
     static async findById(id, tx = null) {
         const sql = `
-      SELECT s.*, u.full_name as cashier_name
+      SELECT s.*, u.full_name as cashier_name, c.name as customer_name
       FROM sales s
       JOIN users u ON u.id = s.user_id
+      LEFT JOIN customers c ON c.id = s.customer_id
       WHERE s.id = ?
     `;
 
@@ -85,6 +93,14 @@ class Sale {
 
         const items = await db.getMany(itemsSql, [id], tx);
         sale.items = items;
+
+        const paymentsSql = `
+      SELECT id, amount, method, reference, notes, created_at
+      FROM payments
+      WHERE sale_id = ? AND payment_type = 'sale'
+      ORDER BY id
+    `;
+        sale.payments = await db.getMany(paymentsSql, [id], tx);
 
         return sale;
     }

@@ -176,7 +176,7 @@ const InventoryPage = () => {
                                     <th>Min Level</th>
                                     <th>Status</th>
                                     <th>Last Updated</th>
-                                    {canAdjust && <th className="text-right">Actions</th>}
+                                    {canAdjust && <th>Actions</th>}
                                 </tr>
                             </thead>
                             <tbody>
@@ -201,7 +201,7 @@ const InventoryPage = () => {
                                                 {item.updated_at ? new Date(item.updated_at).toLocaleDateString() : '-'}
                                             </td>
                                             {canAdjust && (
-                                                <td className="text-right">
+                                                <td>
                                                     <button
                                                         onClick={() => handleAdjust(item)}
                                                         className="btn btn-secondary btn-sm"

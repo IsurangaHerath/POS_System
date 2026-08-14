@@ -8,10 +8,14 @@ class Product {
             barcode = null,
             sku,
             category_id = null,
+            brand_id = null,
+            unit_id = null,
             cost_price = 0,
             selling_price,
+            wholesale_price = 0,
             quantity_in_stock = 0,
             reorder_level = 10,
+            min_stock = 0,
             unit = 'piece',
             description = null,
             image_url = null,
@@ -20,15 +24,15 @@ class Product {
 
         const sql = `
       INSERT INTO products (
-        name, barcode, sku, category_id, cost_price, selling_price,
-        quantity_in_stock, reorder_level, unit, description, image_url, tax_rate
+        name, barcode, sku, category_id, brand_id, unit_id, cost_price, selling_price,
+        wholesale_price, quantity_in_stock, reorder_level, min_stock, unit, description, image_url, tax_rate
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
         const result = await db.query(sql, [
-            name, barcode, sku, category_id, cost_price, selling_price,
-            quantity_in_stock, reorder_level, unit, description, image_url, tax_rate
+            name, barcode, sku, category_id, brand_id, unit_id, cost_price, selling_price,
+            wholesale_price, quantity_in_stock, reorder_level, min_stock, unit, description, image_url, tax_rate
         ], tx);
 
         const productId = result.insertId;
@@ -43,7 +47,10 @@ class Product {
 
     static async findById(id, tx = null) {
         const sql = `
-      SELECT p.*, c.name as category_name,
+      SELECT p.*, 
+        c.name as category_name, 
+        b.name as brand_name,
+        u.name as unit_name,
         i.quantity_available, i.quantity_reserved, i.quantity_ordered,
         CASE 
           WHEN p.quantity_in_stock <= 0 THEN 'out_of_stock'
@@ -52,6 +59,8 @@ class Product {
         END as stock_status
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN brands b ON b.id = p.brand_id
+      LEFT JOIN units u ON u.id = p.unit_id
       LEFT JOIN inventory i ON i.product_id = p.id
       WHERE p.id = ?
     `;
@@ -150,9 +159,9 @@ class Product {
 
     static async update(id, updateData) {
         const allowedFields = [
-            'name', 'barcode', 'sku', 'category_id', 'cost_price', 'selling_price',
-            'quantity_in_stock', 'reorder_level', 'unit', 'description', 'image_url',
-            'tax_rate', 'is_active'
+            'name', 'barcode', 'sku', 'category_id', 'brand_id', 'unit_id', 'cost_price',
+            'selling_price', 'wholesale_price', 'quantity_in_stock', 'reorder_level',
+            'min_stock', 'unit', 'description', 'image_url', 'tax_rate', 'is_active'
         ];
         const updates = [];
         const values = [];

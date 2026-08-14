@@ -116,10 +116,10 @@ const getCurrencySettings = async (req, res, next) => {
 
         // Set defaults if not found
         if (!currencySettings.currency_code) {
-            currencySettings.currency_code = 'USD';
+            currencySettings.currency_code = 'LKR';
         }
         if (!currencySettings.currency_symbol) {
-            currencySettings.currency_symbol = '$';
+            currencySettings.currency_symbol = 'Rs';
         }
 
         return successResponse(res, currencySettings);

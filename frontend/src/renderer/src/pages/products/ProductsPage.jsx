@@ -247,7 +247,7 @@ const ProductsPage = () => {
                                     <th>Price</th>
                                     <th>Stock</th>
                                     <th>Status</th>
-                                    <th className="text-right">Actions</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -281,8 +281,8 @@ const ProductsPage = () => {
                                             <td>
                                                 <span className={`badge ${stockStatus.class}`}>{stockStatus.label}</span>
                                             </td>
-                                            <td className="text-right">
-                                                <div className="flex items-center justify-end gap-2">
+                                            <td>
+                                                <div className="flex items-center gap-2">
                                                     <button
                                                         onClick={() => addToCart(product)}
                                                         disabled={product.stock_quantity < 1}

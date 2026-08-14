@@ -32,6 +32,14 @@ const purchaseOrderRoutes = require('./routes/purchaseOrder.routes');
 const reportRoutes = require('./routes/report.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const settingsRoutes = require('./routes/settings.routes');
+const customerRoutes = require('./routes/customer.routes');
+const returnRoutes = require('./routes/return.routes');
+const expenseRoutes = require('./routes/expense.routes');
+const cashRegisterRoutes = require('./routes/cashRegister.routes');
+const heldBillRoutes = require('./routes/heldBill.routes');
+const brandRoutes = require('./routes/brand.routes');
+const brandRoutes = require('./routes/brand.routes');
+const unitRoutes = require('./routes/unit.routes');
 
 // Initialize Express application
 const app = express();
@@ -222,7 +230,14 @@ app.get('/api/docs', (request, response) => {
             purchaseOrders: '/api/purchase-orders',
             reports: '/api/reports',
             dashboard: '/api/dashboard',
-            settings: '/api/settings'
+            settings: '/api/settings',
+            customers: '/api/customers',
+            returns: '/api/returns',
+            expenses: '/api/expenses',
+            cashRegisters: '/api/cash-registers',
+            heldBills: '/api/held-bills',
+            brands: '/api/brands',
+            units: '/api/units'
         }
     });
 });
@@ -242,6 +257,14 @@ app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/customers', customerRoutes);
+app.use('/api/returns', returnRoutes);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/cash-registers', cashRegisterRoutes);
+app.use('/api/held-bills', heldBillRoutes);
+app.use('/api/brands', brandRoutes);
+app.use('/api/brands', brandRoutes);
+app.use('/api/units', unitRoutes);
 
 // ============================================
 // ERROR HANDLING

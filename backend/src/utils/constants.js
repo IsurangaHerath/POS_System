@@ -19,9 +19,12 @@
  * @constant {Object}
  */
 const ROLES = {
+    OWNER: 'owner',
     ADMIN: 'admin',
     MANAGER: 'manager',
-    CASHIER: 'cashier'
+    CASHIER: 'cashier',
+    INVENTORY_MANAGER: 'inventory_manager',
+    ACCOUNTANT: 'accountant'
 };
 
 /**
@@ -29,8 +32,11 @@ const ROLES = {
  * @constant {Object}
  */
 const ROLE_HIERARCHY = {
-    admin: 3,
-    manager: 2,
+    owner: 6,
+    admin: 5,
+    manager: 4,
+    accountant: 3,
+    inventory_manager: 2,
     cashier: 1
 };
 
@@ -59,7 +65,22 @@ const SALE_STATUS = {
 const PAYMENT_METHODS = {
     CASH: 'cash',
     CARD: 'card',
+    BANK_TRANSFER: 'bank_transfer',
+    QR: 'qr',
+    CREDIT: 'credit',
     MIXED: 'mixed'
+};
+
+// ============================================
+// REFUND METHODS (returns)
+// ============================================
+
+const REFUND_METHODS = {
+    CASH: 'cash',
+    CARD: 'card',
+    BANK_TRANSFER: 'bank_transfer',
+    QR: 'qr',
+    STORE_CREDIT: 'store_credit'
 };
 
 // ============================================
@@ -184,12 +205,18 @@ const DATE_FORMATS = {
  * @constant {Object}
  */
 const DEFAULT_SETTINGS = {
-    TAX_RATE: 10.00,
-    CURRENCY_SYMBOL: '$',
-    CURRENCY_CODE: 'USD',
+    TAX_RATE: 0.00,
+    CURRENCY_SYMBOL: 'LKR',
+    CURRENCY_CODE: 'LKR',
     LOW_STOCK_THRESHOLD: 10,
     INVOICE_PREFIX: 'INV',
-    PO_PREFIX: 'PO'
+    PO_PREFIX: 'PO',
+    BUSINESS_NAME: 'My Store',
+    BUSINESS_ADDRESS: '',
+    BUSINESS_PHONE: '',
+    RECEIPT_FOOTER: 'Thank you for your purchase!',
+    LANGUAGE: 'en',
+    ROUNDING: true
 };
 
 // ============================================
@@ -243,7 +270,32 @@ const PERMISSIONS = {
     
     // Settings permissions
     VIEW_SETTINGS: 'view_settings',
-    MANAGE_SETTINGS: 'manage_settings'
+    MANAGE_SETTINGS: 'manage_settings',
+
+    // Customer / credit permissions
+    VIEW_CUSTOMERS: 'view_customers',
+    MANAGE_CUSTOMERS: 'manage_customers',
+    CREDIT_SALES: 'credit_sales',
+    MANAGE_CUSTOMER_CREDIT: 'manage_customer_credit',
+
+    // Return / refund permissions
+    CREATE_RETURNS: 'create_returns',
+    VIEW_RETURNS: 'view_returns',
+
+    // Expense permissions
+    VIEW_EXPENSES: 'view_expenses',
+    MANAGE_EXPENSES: 'manage_expenses',
+
+    // Cash register permissions
+    OPEN_CASH_REGISTER: 'open_cash_register',
+    CLOSE_CASH_REGISTER: 'close_cash_register',
+    VIEW_CASH_REGISTER: 'view_cash_register',
+
+    // Held bills / quotations
+    HOLD_BILLS: 'hold_bills',
+
+    // Discount override
+    DISCOUNT_OVERRIDE: 'discount_override'
 };
 
 // ============================================
@@ -255,10 +307,11 @@ const PERMISSIONS = {
  * @constant {Object}
  */
 const ROLE_PERMISSIONS = {
-    // Admin has all permissions
+    // Owner and Admin have all permissions
+    owner: Object.values(PERMISSIONS),
     admin: Object.values(PERMISSIONS),
-    
-    // Manager has most operational permissions
+
+    // Manager has broad operational permissions
     manager: [
         PERMISSIONS.VIEW_DASHBOARD,
         PERMISSIONS.VIEW_PRODUCTS,
@@ -278,9 +331,63 @@ const ROLE_PERMISSIONS = {
         PERMISSIONS.APPROVE_PURCHASE_ORDERS,
         PERMISSIONS.RECEIVE_PURCHASE_ORDERS,
         PERMISSIONS.VIEW_REPORTS,
-        PERMISSIONS.EXPORT_REPORTS
+        PERMISSIONS.EXPORT_REPORTS,
+        PERMISSIONS.VIEW_CUSTOMERS,
+        PERMISSIONS.MANAGE_CUSTOMERS,
+        PERMISSIONS.CREDIT_SALES,
+        PERMISSIONS.MANAGE_CUSTOMER_CREDIT,
+        PERMISSIONS.CREATE_RETURNS,
+        PERMISSIONS.VIEW_RETURNS,
+        PERMISSIONS.VIEW_EXPENSES,
+        PERMISSIONS.MANAGE_EXPENSES,
+        PERMISSIONS.OPEN_CASH_REGISTER,
+        PERMISSIONS.CLOSE_CASH_REGISTER,
+        PERMISSIONS.VIEW_CASH_REGISTER,
+        PERMISSIONS.HOLD_BILLS,
+        PERMISSIONS.DISCOUNT_OVERRIDE
     ],
-    
+
+    // Accountant focuses on finance, reports, expenses and credit
+    accountant: [
+        PERMISSIONS.VIEW_DASHBOARD,
+        PERMISSIONS.VIEW_PRODUCTS,
+        PERMISSIONS.VIEW_CATEGORIES,
+        PERMISSIONS.VIEW_SALES,
+        PERMISSIONS.VIEW_INVENTORY,
+        PERMISSIONS.VIEW_SUPPLIERS,
+        PERMISSIONS.VIEW_PURCHASE_ORDERS,
+        PERMISSIONS.VIEW_REPORTS,
+        PERMISSIONS.EXPORT_REPORTS,
+        PERMISSIONS.VIEW_CUSTOMERS,
+        PERMISSIONS.MANAGE_CUSTOMERS,
+        PERMISSIONS.MANAGE_CUSTOMER_CREDIT,
+        PERMISSIONS.VIEW_RETURNS,
+        PERMISSIONS.VIEW_EXPENSES,
+        PERMISSIONS.MANAGE_EXPENSES,
+        PERMISSIONS.VIEW_CASH_REGISTER
+    ],
+
+    // Inventory manager focuses on product, stock and purchasing
+    inventory_manager: [
+        PERMISSIONS.VIEW_DASHBOARD,
+        PERMISSIONS.VIEW_PRODUCTS,
+        PERMISSIONS.CREATE_PRODUCTS,
+        PERMISSIONS.EDIT_PRODUCTS,
+        PERMISSIONS.VIEW_CATEGORIES,
+        PERMISSIONS.MANAGE_CATEGORIES,
+        PERMISSIONS.VIEW_SALES,
+        PERMISSIONS.VIEW_INVENTORY,
+        PERMISSIONS.ADJUST_INVENTORY,
+        PERMISSIONS.VIEW_SUPPLIERS,
+        PERMISSIONS.MANAGE_SUPPLIERS,
+        PERMISSIONS.VIEW_PURCHASE_ORDERS,
+        PERMISSIONS.CREATE_PURCHASE_ORDERS,
+        PERMISSIONS.APPROVE_PURCHASE_ORDERS,
+        PERMISSIONS.RECEIVE_PURCHASE_ORDERS,
+        PERMISSIONS.VIEW_RETURNS,
+        PERMISSIONS.CREATE_RETURNS
+    ],
+
     // Cashier has limited permissions
     cashier: [
         PERMISSIONS.VIEW_DASHBOARD,
@@ -290,7 +397,13 @@ const ROLE_PERMISSIONS = {
         PERMISSIONS.VIEW_SALES,
         PERMISSIONS.VIEW_INVENTORY,
         PERMISSIONS.VIEW_SUPPLIERS,
-        PERMISSIONS.VIEW_PURCHASE_ORDERS
+        PERMISSIONS.VIEW_PURCHASE_ORDERS,
+        PERMISSIONS.VIEW_CUSTOMERS,
+        PERMISSIONS.CREDIT_SALES,
+        PERMISSIONS.CREATE_RETURNS,
+        PERMISSIONS.OPEN_CASH_REGISTER,
+        PERMISSIONS.CLOSE_CASH_REGISTER,
+        PERMISSIONS.HOLD_BILLS
     ]
 };
 
@@ -312,5 +425,6 @@ module.exports = {
     DATE_FORMATS,
     DEFAULT_SETTINGS,
     PERMISSIONS,
-    ROLE_PERMISSIONS
+    ROLE_PERMISSIONS,
+    REFUND_METHODS
 };

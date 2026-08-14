@@ -51,11 +51,24 @@ router.post('/',
             .isInt({ min: 1 })
             .withMessage('Quantity must be at least 1'),
         body('payment_method')
-            .isIn(['cash', 'card', 'mixed'])
+            .isIn(['cash', 'card', 'bank_transfer', 'qr', 'credit', 'mixed'])
             .withMessage('Invalid payment method'),
         body('amount_paid')
+            .optional()
             .isFloat({ min: 0 })
-            .withMessage('Amount paid must be a positive number')
+            .withMessage('Amount paid must be a positive number'),
+        body('discount_type')
+            .optional()
+            .isIn(['fixed', 'percent'])
+            .withMessage('Invalid discount type'),
+        body('customer_id')
+            .optional()
+            .isInt()
+            .withMessage('Invalid customer'),
+        body('payments')
+            .optional()
+            .isArray()
+            .withMessage('Payments must be an array')
     ],
     asyncHandler(saleController.createSale)
 );

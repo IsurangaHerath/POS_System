@@ -39,6 +39,16 @@ const POSPage = () => {
     const [amountReceived, setAmountReceived] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // Sri Lankan commercial POS additions
+    const [customers, setCustomers] = useState([]);
+    const [selectedCustomer, setSelectedCustomer] = useState(null);
+    const [barcodeInput, setBarcodeInput] = useState('');
+    const [heldBills, setHeldBills] = useState([]);
+    const [showHeldBills, setShowHeldBills] = useState(false);
+    const [payments, setPayments] = useState([]); // mixed payment rows [{method, amount}]
+
+    // Load customers and held bills for cashier quickly.
+
     // Tax rate (can be made configurable)
     const taxRate = 0.1; // 10%
 
@@ -113,6 +123,89 @@ const POSPage = () => {
             fetchProducts();
         }
     }, [currencySettings.exchange_rate, products.length]);
+
+    // Load customers for credit/udharata and cashier's held bills
+    useEffect(() => {
+        const loadSupportData = async () => {
+            try {
+                const [custRes, heldRes] = await Promise.all([
+                    api.get('/customers', { params: { limit: 100, is_active: true } }),
+                    api.get('/held-bills', { params: { limit: 50 } })
+                ]);
+                setCustomers(custRes.data.data || []);
+                setHeldBills(heldRes.data.data || []);
+            } catch (err) {
+                console.error('Failed to load support data:', err);
+            }
+        };
+        loadSupportData();
+    }, []);
+
+    // Barcode scanner support (also accepts SKU). On Enter, add matching product.
+    const handleBarcodeScan = async (e) => {
+        if (e.key === 'Enter' && barcodeInput.trim()) {
+            e.preventDefault();
+            const code = barcodeInput.trim();
+            const existing = products.find(
+                (p) => (p.barcode && p.barcode === code) || (p.sku && p.sku === code)
+            );
+            if (existing) {
+                addToCart(existing);
+            } else {
+                try {
+                    const res = await api.get(`/products/barcode/${encodeURIComponent(code)}`);
+                    if (res.data.data) {
+                        const p = res.data.data;
+                        addToCart({
+                            id: p.id, name: p.name, sku: p.sku, barcode: p.barcode,
+                            price: parseFloat(p.selling_price) || 0,
+                            stock_quantity: p.quantity_in_stock,
+                            min_stock_level: p.reorder_level
+                        });
+                    } else {
+                        error('Product not found');
+                    }
+                } catch (err) {
+                    error('Product not found');
+                }
+            }
+            setBarcodeInput('');
+        }
+    };
+
+    // Hold current bill
+    const handleHoldBill = async () => {
+        if (cart.length === 0) { error('Cart is empty'); return; }
+        try {
+            await api.post('/held-bills', {
+                customer_id: selectedCustomer?.id || null,
+                cart,
+                notes: selectedCustomer ? `Customer: ${selectedCustomer.name}` : null
+            });
+            success('Bill held');
+            clearCart();
+            setDiscount({ type: 'percentage', value: 0 });
+            const res = await api.get('/held-bills', { params: { limit: 50 } });
+            setHeldBills(res.data.data || []);
+        } catch (err) {
+            error(err.response?.data?.message || 'Failed to hold bill');
+        }
+    };
+
+    // Resume a held bill
+    const handleResumeBill = async (bill) => {
+        const restored = (bill.cart || [])
+            .map((ci) => products.find((p) => p.id === ci.id) || ci)
+            .filter((ci) => ci);
+        if (restored.length) {
+            clearCart();
+            restored.forEach((ci) => addToCart({ ...ci, quantity: 1 }));
+        }
+        if (bill.customer_id) {
+            setSelectedCustomer(customers.find((c) => c.id === bill.customer_id) || null);
+        }
+        setShowHeldBills(false);
+    };
 
     // Filter products
     const filteredProducts = products.filter((product) => {

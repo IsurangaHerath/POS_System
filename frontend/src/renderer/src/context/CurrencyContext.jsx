@@ -25,8 +25,8 @@ const CURRENCIES = {
 
 export const CurrencyProvider = ({ children }) => {
     const [currencySettings, setCurrencySettings] = useState({
-        currency_code: 'USD',
-        currency_symbol: '$'
+        currency_code: 'LKR',
+        currency_symbol: 'Rs'
     });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -42,8 +42,8 @@ export const CurrencyProvider = ({ children }) => {
             const response = await get('/settings/currency');
             if (response.data) {
                 setCurrencySettings({
-                    currency_code: response.data.currency_code || 'USD',
-                    currency_symbol: response.data.currency_symbol || '$'
+                    currency_code: response.data.currency_code || 'LKR',
+                    currency_symbol: response.data.currency_symbol || 'Rs'
                 });
             }
         } catch (err) {
@@ -51,8 +51,8 @@ export const CurrencyProvider = ({ children }) => {
             setError(err.message);
             // Use defaults on error
             setCurrencySettings({
-                currency_code: 'USD',
-                currency_symbol: '$'
+                currency_code: 'LKR',
+                currency_symbol: 'Rs'
             });
         } finally {
             setLoading(false);
@@ -114,10 +114,20 @@ export const CurrencyProvider = ({ children }) => {
         if (price === null || price === undefined || isNaN(price)) {
             return `${currencySettings.currency_symbol}0.00`;
         }
-        
-        const formatted = Number(price).toFixed(2);
-        return `${currencySettings.currency_symbol}${formatted}`;
-    }, [currencySettings.currency_symbol]);
+
+        const amount = Number(price);
+        // Use Sri Lankan number formatting (thousands separators) for LKR.
+        try {
+            const locale = currencySettings.currency_code === 'LKR' ? 'en-LK' : 'en-US';
+            const formatted = amount.toLocaleString(locale, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+            return `${currencySettings.currency_symbol} ${formatted}`;
+        } catch (e) {
+            return `${currencySettings.currency_symbol}${amount.toFixed(2)}`;
+        }
+    }, [currencySettings.currency_symbol, currencySettings.currency_code]);
 
     // Format price for reports (shows current currency info without conversion)
     const formatPriceForReport = useCallback((amount, storedRate = null) => {
