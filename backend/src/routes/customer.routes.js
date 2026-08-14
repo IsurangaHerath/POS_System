@@ -10,6 +10,7 @@ const router = express.Router();
 
 const customerController = require('../controllers/customerController');
 const { authenticate } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validate');
 const { managerOrAdmin, adminOnly, requirePermission } = require('../middleware/rbac');
 const { PERMISSIONS } = require('../utils/constants');
 const { asyncHandler } = require('../middleware/errorHandler');
@@ -48,6 +49,7 @@ router.post('/',
     [
         body('name').trim().notEmpty().withMessage('Customer name is required')
     ],
+    validateRequest,
     asyncHandler(customerController.createCustomer)
 );
 

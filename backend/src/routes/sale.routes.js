@@ -11,6 +11,7 @@ const router = express.Router();
 const saleController = require('../controllers/saleController');
 const { authenticate } = require('../middleware/auth');
 const { managerOrAdmin } = require('../middleware/rbac');
+const { validateRequest } = require('../middleware/validate');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 /**
@@ -70,6 +71,7 @@ router.post('/',
             .isArray()
             .withMessage('Payments must be an array')
     ],
+    validateRequest,
     asyncHandler(saleController.createSale)
 );
 

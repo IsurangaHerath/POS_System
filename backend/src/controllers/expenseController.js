@@ -45,20 +45,25 @@ const createExpense = async (request, response, next) => {
             throw new ValidationError('A valid expense amount is required');
         }
 
-        const expenseId = await Expense.create(data);
+        const database = require('../config/database');
+        const expenseId = await database.transaction(async (tx) => {
+            const createdId = await Expense.create(data, tx);
 
-        // Record cash movement if a cash register is open.
-        const openRegister = await CashRegister.findOpenByUser(request.user.id);
-        if (openRegister && (data.payment_method || 'cash') === 'cash') {
-            await CashRegister.addEntry(
-                openRegister.id,
-                'expense',
-                Number(data.amount),
-                expenseId,
-                data.description || 'Expense',
-                null
-            );
-        }
+            // Record cash movement if a cash register is open.
+            const openRegister = await CashRegister.findOpenByUser(request.user.id);
+            if (openRegister && (data.payment_method || 'cash') === 'cash') {
+                await CashRegister.addEntry(
+                    openRegister.id,
+                    'expense',
+                    Number(data.amount),
+                    createdId,
+                    data.description || 'Expense',
+                    tx
+                );
+            }
+
+            return createdId;
+        });
 
         const expense = await Expense.findById(expenseId);
         logger.info(`Expense #${expenseId} created by ${request.user.username}`);

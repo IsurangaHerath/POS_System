@@ -4,6 +4,7 @@ const router = express.Router();
 
 const brandController = require('../controllers/brandController');
 const { authenticate } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validate');
 const { requirePermission } = require('../middleware/rbac');
 const { PERMISSIONS } = require('../utils/constants');
 const { asyncHandler } = require('../middleware/errorHandler');
@@ -24,6 +25,7 @@ router.post('/',
     [
         body('name').notEmpty().withMessage('Brand name is required')
     ],
+    validateRequest,
     asyncHandler(brandController.create)
 );
 

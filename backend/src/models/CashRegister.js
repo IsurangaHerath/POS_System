@@ -6,6 +6,7 @@
  */
 
 const db = require('../config/database');
+const { NotFoundError, ConflictError } = require('../middleware/errorHandler');
 
 class CashRegister {
     /**
@@ -99,10 +100,10 @@ class CashRegister {
     static async close(id, actualCash, notes = null) {
         const register = await this.findById(id);
         if (!register) {
-            throw new Error('Cash register not found');
+            throw new NotFoundError('Cash register not found');
         }
         if (register.status !== 'open') {
-            throw new Error('Cash register is already closed');
+            throw new ConflictError('Cash register is already closed');
         }
 
         const expected = await this.computeExpected(id);

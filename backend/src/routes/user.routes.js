@@ -10,6 +10,7 @@ const router = express.Router();
 
 const userController = require('../controllers/userController');
 const { authenticate } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validate');
 const { adminOnly } = require('../middleware/rbac');
 const { asyncHandler } = require('../middleware/errorHandler');
 
@@ -66,6 +67,7 @@ router.post('/',
             .optional()
             .trim()
     ],
+    validateRequest,
     asyncHandler(userController.createUser)
 );
 
@@ -105,6 +107,7 @@ router.put('/:id',
             .isBoolean()
             .withMessage('is_active must be a boolean')
     ],
+    validateRequest,
     asyncHandler(userController.updateUser)
 );
 

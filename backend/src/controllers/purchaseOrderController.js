@@ -163,6 +163,10 @@ const receivePurchaseOrder = async (req, res, next) => {
         const { items, notes } = req.body;
         const userId = req.user.id;
 
+        if (!Array.isArray(items) || items.length === 0) {
+            throw new ValidationError('At least one received item is required');
+        }
+
         // Check if PO exists
         const purchaseOrder = await PurchaseOrder.findById(id);
         if (!purchaseOrder) {
@@ -173,47 +177,66 @@ const receivePurchaseOrder = async (req, res, next) => {
             throw new ValidationError('Cannot receive cancelled purchase order');
         }
 
+        if (purchaseOrder.status === 'received') {
+            throw new ValidationError('Purchase order is already fully received');
+        }
+
         // Start transaction
         const connection = await db.beginTransaction();
 
         try {
             // Process received items
             for (const item of items) {
-                const poItem = await PurchaseOrder.findItem(id, item.product_id);
+                const poItem = await PurchaseOrder.findItem(id, item.product_id, connection);
 
                 if (!poItem) {
-                    throw new NotFoundError(`Item not found in purchase order`);
+                    throw new NotFoundError(`Item not found in purchase order for product ${item.product_id}`);
                 }
 
-                const qtyReceived = item.quantity_received;
+                const qtyReceived = Number(item.quantity_received) || 0;
+                if (qtyReceived < 0) {
+                    throw new ValidationError('Received quantity cannot be negative');
+                }
+                if (qtyReceived > poItem.quantity_ordered) {
+                    throw new ValidationError(
+                        `Cannot receive more than ordered for ${poItem.product_id} (ordered: ${poItem.quantity_ordered})`
+                    );
+                }
+                if (qtyReceived < poItem.quantity_received) {
+                    throw new ValidationError(
+                        `Received quantity cannot decrease below already-received amount`
+                    );
+                }
+
                 const qtyDiff = qtyReceived - poItem.quantity_received;
 
                 if (qtyDiff > 0) {
                     // Update product stock
-                    await Product.updateStock(item.product_id, qtyDiff);
+                    await Product.updateStock(item.product_id, qtyDiff, connection);
 
                     // Log inventory change
                     await PurchaseOrder.logInventoryChange(
                         item.product_id,
                         qtyDiff,
                         id,
-                        userId
+                        userId,
+                        connection
                     );
                 }
 
                 // Update PO item
-                await PurchaseOrder.updateItemReceived(id, item.product_id, qtyReceived);
+                await PurchaseOrder.updateItemReceived(id, item.product_id, qtyReceived, connection);
             }
 
             // Check if all items received
-            const allItems = await PurchaseOrder.getItems(id);
+            const allItems = await PurchaseOrder.getItems(id, connection);
             const allReceived = allItems.every(
                 item => item.quantity_received >= item.quantity_ordered
             );
 
             // Update PO status
             const newStatus = allReceived ? 'received' : 'approved';
-            await PurchaseOrder.updateStatus(id, newStatus, allReceived ? new Date() : null);
+            await PurchaseOrder.updateStatus(id, newStatus, allReceived ? new Date() : null, connection);
 
             await db.commitTransaction(connection);
 

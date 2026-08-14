@@ -91,6 +91,22 @@ const createReturn = async (request, response, next) => {
                 tx
             );
 
+            // Cumulative guard: total already returned per product across ALL
+            // prior returns, so the same sale cannot be over-refunded.
+            const alreadyReturnedRows = await database.getMany(
+                `SELECT ri.product_id, COALESCE(SUM(ri.quantity), 0) AS total_returned
+                 FROM return_items ri
+                 JOIN returns r ON r.id = ri.return_id
+                 WHERE r.sale_id = ? AND r.status = 'completed'
+                 GROUP BY ri.product_id`,
+                [sale_id],
+                tx
+            );
+            const alreadyReturnedMap = {};
+            for (const row of alreadyReturnedRows) {
+                alreadyReturnedMap[row.product_id] = Number(row.total_returned);
+            }
+
             let subtotal = 0;
             let taxAmount = 0;
 
@@ -99,25 +115,35 @@ const createReturn = async (request, response, next) => {
                 if (!original) {
                     throw new ValidationError(`Product #${item.product_id} is not part of this sale`);
                 }
-                if (item.quantity > original.quantity) {
+
+                const qty = Number(item.quantity) || 0;
+                const alreadyReturned = alreadyReturnedMap[item.product_id] || 0;
+                if (qty <= 0 || (alreadyReturned + qty) > original.quantity) {
                     throw new ValidationError(
-                        `Cannot return more than ${original.quantity} of ${original.product_name}`
+                        `Cannot return more than ${original.quantity} (${alreadyReturned} already returned) of ${original.product_name}`
                     );
                 }
 
-                const lineSubtotal = (Number(item.unit_price) || Number(original.unit_price)) * Number(item.quantity);
-                subtotal += lineSubtotal;
+                // Refund pricing is authoritative from the original sale item:
+                // use the original unit_price unless an explicit lower price is provided.
+                const unitPrice = Number(item.unit_price) || Number(original.unit_price);
+                const originalNet = Number(original.subtotal) || (unitPrice * original.quantity);
+                const lineNet = Math.min(unitPrice * qty, (originalNet / original.quantity) * qty);
+                const lineTax = Number(original.tax_amount) || 0;
+
+                subtotal += lineNet;
+                taxAmount += (lineTax / original.quantity) * qty;
 
                 // Restore stock and log the inventory movement.
                 if (item.product_id) {
                     await database.query(
                         'UPDATE products SET quantity_in_stock = quantity_in_stock + ? WHERE id = ?',
-                        [Number(item.quantity), item.product_id],
+                        [qty, item.product_id],
                         tx
                     );
                     await Sale.logInventoryChange(
                         item.product_id,
-                        Number(item.quantity),
+                        qty,
                         sale_id,
                         'return',
                         request.user.id,
@@ -128,6 +154,7 @@ const createReturn = async (request, response, next) => {
             }
 
             const returnNumber = await ReturnModel.generateNumber();
+            const refundAmount = subtotal + taxAmount;
             const returnId = await ReturnModel.create({
                 return_number: returnNumber,
                 sale_id,
@@ -135,7 +162,7 @@ const createReturn = async (request, response, next) => {
                 return_type,
                 subtotal,
                 tax_amount: taxAmount,
-                refund_amount: subtotal,
+                refund_amount: refundAmount,
                 refund_method,
                 customer_id: sale.customer_id || null,
                 notes
@@ -143,19 +170,33 @@ const createReturn = async (request, response, next) => {
 
             for (const item of items) {
                 const original = saleItems.find((si) => si.product_id === item.product_id);
+                const qty = Number(item.quantity) || 0;
+                const unitPrice = Number(item.unit_price) || Number(original.unit_price);
+                const originalNet = Number(original.subtotal) || (unitPrice * original.quantity);
+                const lineNet = Math.min(unitPrice * qty, (originalNet / original.quantity) * qty);
                 await ReturnModel.createItem(returnId, {
                     product_id: item.product_id,
                     product_name: original.product_name,
                     product_barcode: original.product_barcode,
-                    unit_price: Number(item.unit_price) || Number(original.unit_price),
-                    quantity: Number(item.quantity),
-                    subtotal: (Number(item.unit_price) || Number(original.unit_price)) * Number(item.quantity)
+                    unit_price: lineNet / qty,
+                    quantity: qty,
+                    subtotal: lineNet
                 }, tx);
             }
 
             // If customer credit was involved, reduce their outstanding balance.
-            if (sale.customer_id && Number(sale.amount_due) > 0) {
-                await Customer.adjustBalance(sale.customer_id, -subtotal, tx);
+            const creditReduction = Math.min(refundAmount, Number(sale.amount_due) || 0);
+            if (sale.customer_id && creditReduction > 0) {
+                await Customer.adjustBalance(sale.customer_id, -creditReduction, tx);
+            }
+
+            // Record a cash refund entry in the open register when refunding in cash.
+            if (refund_method === 'cash' && refundAmount > 0) {
+                const CashRegister = require('../models/CashRegister');
+                const openRegister = await CashRegister.findOpenByUser(request.user.id);
+                if (openRegister) {
+                    await CashRegister.addEntry(openRegister.id, 'refund', refundAmount, returnId, `Return ${returnNumber}`, tx);
+                }
             }
 
             return { returnId, sale };

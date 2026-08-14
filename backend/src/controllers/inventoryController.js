@@ -132,18 +132,21 @@ const adjustInventory = async (req, res, next) => {
             throw new ValidationError('Insufficient stock for this adjustment');
         }
 
-        // Update stock
-        await Product.updateStock(product_id, quantityChange);
+        // Update stock + log change atomically
+        const database = require('../config/database');
+        await database.transaction(async (tx) => {
+            await Product.updateStock(product_id, quantityChange, tx);
 
-        // Log the change
-        await Inventory.logChange({
-            product_id,
-            transaction_type: 'adjustment',
-            quantity_change: quantityChange,
-            quantity_before: product.quantity_in_stock,
-            quantity_after: product.quantity_in_stock + quantityChange,
-            user_id: userId,
-            notes: notes || `Manual ${adjustment_type}: ${quantity}`
+            // Log the change
+            await Inventory.logChange({
+                product_id,
+                transaction_type: 'adjustment',
+                quantity_change: quantityChange,
+                quantity_before: product.quantity_in_stock,
+                quantity_after: product.quantity_in_stock + quantityChange,
+                user_id: userId,
+                notes: notes || `Manual ${adjustment_type}: ${quantity}`
+            }, tx);
         });
 
         // Get updated product

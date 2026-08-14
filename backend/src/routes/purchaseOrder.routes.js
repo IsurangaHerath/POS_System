@@ -10,6 +10,7 @@ const router = express.Router();
 
 const purchaseOrderController = require('../controllers/purchaseOrderController');
 const { authenticate } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validate');
 const { managerOrAdmin } = require('../middleware/rbac');
 const { asyncHandler } = require('../middleware/errorHandler');
 
@@ -58,6 +59,7 @@ router.post('/',
             .isFloat({ min: 0 })
             .withMessage('Unit cost is required')
     ],
+    validateRequest,
     asyncHandler(purchaseOrderController.createPurchaseOrder)
 );
 

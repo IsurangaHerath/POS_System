@@ -17,7 +17,9 @@ const logger = require('../utils/logger');
 const openRegister = async (request, response, next) => {
     try {
         const { opening_cash = 0, notes = null } = request.body;
-        const cashierId = request.body.cashier_id || request.user.id;
+        // Always open the register for the authenticated user; never allow
+        // impersonating another cashier via the request body.
+        const cashierId = request.user.id;
 
         const existing = await CashRegister.findOpenByUser(cashierId);
         if (existing) {

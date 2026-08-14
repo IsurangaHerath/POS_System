@@ -7,31 +7,27 @@ const getAll = async (req, res, next) => {
     try {
         const { page = 1, limit = 50, search = null, is_active = null } = req.query;
 
-        let sql = 'SELECT * FROM brands ORDER BY name LIMIT ? OFFSET ?';
-        let params = [limit, (page - 1) * limit];
-
-        const countSql = 'SELECT COUNT(*) AS total FROM brands';
-        let countParams = [];
         const conditions = [];
+        const params = [];
 
         if (search) {
             conditions.push('(name LIKE ? OR description LIKE ?)');
             const like = `%${search}%`;
-            countSql += ' WHERE ' + conditions.join(' AND ');
-            countParams = [like, like];
+            params.push(like, like);
         }
 
         if (is_active !== null) {
             conditions.push('is_active = ?');
-            countParams.push(is_active === 'true');
+            params.push(is_active === 'true');
         }
 
-        if (conditions.length > 0) {
-            sql = `SELECT * FROM brands WHERE ${conditions.join(' AND ')} ORDER BY name LIMIT ? OFFSET ?`;
-        }
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-        const countResult = await db.getOne(countSql, countParams);
-        const brands = await db.getMany(sql, [...params]);
+        const countSql = `SELECT COUNT(*) AS total FROM brands ${whereClause}`;
+        const sql = `SELECT * FROM brands ${whereClause} ORDER BY name LIMIT ? OFFSET ?`;
+
+        const countResult = await db.getOne(countSql, params);
+        const brands = await db.getMany(sql, [...params, parseInt(limit), (parseInt(page) - 1) * parseInt(limit)]);
 
         return paginatedResponse(res, brands, {
             page: parseInt(page),
@@ -127,7 +123,7 @@ const deleteBrand = async (req, res, next) => {
             throw new NotFoundError('Brand not found');
         }
 
-        await db.query('DELETE FROM brands WHERE id = ?', [id]);
+        await db.query('UPDATE brands SET is_active = FALSE WHERE id = ?', [id]);
 
         logger.info(`Brand deleted: ${brand.name} by ${req.user.username}`);
 

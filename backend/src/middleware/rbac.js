@@ -130,9 +130,10 @@ const requireAllPermissions = (...permissions) => {
 };
 
 /**
- * Admin only middleware
+ * Owner or Admin only middleware
+ * Owner and Admin have all permissions.
  */
-const adminOnly = requireRoles(ROLES.ADMIN);
+const adminOnly = requireRoles(ROLES.ADMIN, ROLES.OWNER);
 
 /**
  * Manager or Admin only middleware

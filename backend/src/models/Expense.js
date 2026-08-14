@@ -7,7 +7,7 @@
 const db = require('../config/database');
 
 class Expense {
-    static async create(data) {
+    static async create(data, tx = null) {
         const {
             category_id = null,
             amount,
@@ -30,7 +30,7 @@ class Expense {
         const result = await db.query(sql, [
             category_id, amount, expense_date, description, payment_method,
             employee_id, reference, user_id
-        ]);
+        ], tx);
 
         return result.insertId;
     }

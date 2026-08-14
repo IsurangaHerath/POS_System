@@ -10,6 +10,7 @@ const router = express.Router();
 
 const inventoryController = require('../controllers/inventoryController');
 const { authenticate } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validate');
 const { managerOrAdmin } = require('../middleware/rbac');
 const { asyncHandler } = require('../middleware/errorHandler');
 
@@ -55,6 +56,7 @@ router.post('/adjust',
             .optional()
             .trim()
     ],
+    validateRequest,
     asyncHandler(inventoryController.adjustInventory)
 );
 

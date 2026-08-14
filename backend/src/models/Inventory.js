@@ -185,7 +185,7 @@ class Inventory {
      * @param {Object} logData - Log data
      * @returns {Promise<number>} Inserted log ID
      */
-    static async logChange(logData) {
+    static async logChange(logData, tx = null) {
         const {
             product_id,
             transaction_type,
@@ -211,7 +211,7 @@ class Inventory {
             product_id, transaction_type, quantity_change,
             quantity_before, quantity_after, reference_id,
             reference_type, user_id, notes
-        ]);
+        ], tx);
 
         return result.insertId;
     }

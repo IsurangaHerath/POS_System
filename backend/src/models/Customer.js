@@ -32,7 +32,7 @@ class Customer {
         return result.insertId;
     }
 
-    static async findById(id) {
+    static async findById(id, tx = null) {
         const sql = `
       SELECT c.*, 
              (SELECT COUNT(*) FROM sales WHERE customer_id = c.id) as purchase_count,
@@ -41,7 +41,7 @@ class Customer {
       WHERE c.id = ?
     `;
 
-        return db.getOne(sql, [id]);
+        return db.getOne(sql, [id], tx);
     }
 
     static async findByCode(code) {

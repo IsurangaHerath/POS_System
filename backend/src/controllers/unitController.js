@@ -7,26 +7,27 @@ const getAll = async (req, res, next) => {
     try {
         const { page = 1, limit = 50, search = null, is_active = null } = req.query;
 
-        let sql = 'SELECT * FROM units ORDER BY name LIMIT ? OFFSET ?';
-        let params = [limit, (page - 1) * limit];
-
-        const countSql = 'SELECT COUNT(*) AS total FROM units';
-        let countParams = [];
         const conditions = [];
+        const params = [];
 
         if (search) {
             conditions.push('(name LIKE ? OR abbreviation LIKE ?)');
             const like = `%${search}%`;
-            countSql += ' WHERE ' + conditions.join(' AND ');
-            countParams = [like, like];
+            params.push(like, like);
         }
 
-        if (conditions.length > 0) {
-            sql = `SELECT * FROM units WHERE ${conditions.join(' AND ')} ORDER BY name LIMIT ? OFFSET ?`;
+        if (is_active !== null) {
+            conditions.push('is_active = ?');
+            params.push(is_active === 'true');
         }
 
-        const countResult = await db.getOne(countSql, countParams);
-        const units = await db.getMany(sql, [...params]);
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const countSql = `SELECT COUNT(*) AS total FROM units ${whereClause}`;
+        const sql = `SELECT * FROM units ${whereClause} ORDER BY name LIMIT ? OFFSET ?`;
+
+        const countResult = await db.getOne(countSql, params);
+        const units = await db.getMany(sql, [...params, parseInt(limit), (parseInt(page) - 1) * parseInt(limit)]);
 
         return paginatedResponse(res, units, {
             page: parseInt(page),

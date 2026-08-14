@@ -10,6 +10,7 @@ const router = express.Router();
 
 const productController = require('../controllers/productController');
 const { authenticate } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validate');
 const { managerOrAdmin, adminOnly } = require('../middleware/rbac');
 const { asyncHandler } = require('../middleware/errorHandler');
 
@@ -86,6 +87,7 @@ router.post('/',
             .isInt()
             .withMessage('Category ID must be an integer')
     ],
+    validateRequest,
     asyncHandler(productController.createProduct)
 );
 

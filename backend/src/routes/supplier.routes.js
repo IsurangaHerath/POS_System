@@ -10,6 +10,7 @@ const router = express.Router();
 
 const supplierController = require('../controllers/supplierController');
 const { authenticate } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validate');
 const { managerOrAdmin, adminOnly } = require('../middleware/rbac');
 const { asyncHandler } = require('../middleware/errorHandler');
 
@@ -51,6 +52,7 @@ router.post('/',
             .isEmail()
             .withMessage('Valid email is required')
     ],
+    validateRequest,
     asyncHandler(supplierController.createSupplier)
 );
 

@@ -117,13 +117,14 @@ class RateLimitError extends ApiError {
  */
 const errorHandler = (err, request, response, next) => {
     // Build error information object for logging
+    // NOTE: request.body is intentionally omitted to avoid logging sensitive
+    // fields such as passwords and tokens.
     const errorInfo = {
         message: err.message,
         code: err.code || ERROR_CODES.INTERNAL_ERROR,
         stack: err.stack,
         method: request.method,
         url: request.originalUrl,
-        body: request.body,
         params: request.params,
         query: request.query,
         user: request.user?.id || 'anonymous',

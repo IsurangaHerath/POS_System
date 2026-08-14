@@ -190,6 +190,12 @@ class Sale {
         return db.getMany(sql, [saleId], tx);
     }
 
+    static async getCreditPaidAmount(saleId, tx = null) {
+        const sql = `SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE sale_id = ? AND method = 'credit'`;
+        const result = await db.getOne(sql, [saleId], tx);
+        return Number(result?.total) || 0;
+    }
+
     static async generateInvoiceNumber(tx = null) {
         const date = new Date();
         const datePart = date.toISOString().slice(0, 10).replace(/-/g, '');
@@ -206,13 +212,15 @@ class Sale {
     }
 
     static async logInventoryChange(productId, quantityChange, referenceId, referenceType, userId, notes = null, tx = null) {
+        // NOTE: this is always called AFTER the stock has been updated by
+        // Product.updateStock, so the current quantity_in_stock is the "after" value.
         const productSql = 'SELECT quantity_in_stock FROM products WHERE id = ?';
         const product = await db.getOne(productSql, [productId], tx);
 
         if (!product) return;
 
-        const quantityBefore = product.quantity_in_stock;
-        const quantityAfter = quantityBefore + quantityChange;
+        const quantityAfter = product.quantity_in_stock;
+        const quantityBefore = quantityAfter - quantityChange;
 
         const sql = `
       INSERT INTO inventory_logs (

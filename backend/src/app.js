@@ -38,7 +38,6 @@ const expenseRoutes = require('./routes/expense.routes');
 const cashRegisterRoutes = require('./routes/cashRegister.routes');
 const heldBillRoutes = require('./routes/heldBill.routes');
 const brandRoutes = require('./routes/brand.routes');
-const brandRoutes = require('./routes/brand.routes');
 const unitRoutes = require('./routes/unit.routes');
 
 // Initialize Express application
@@ -262,7 +261,6 @@ app.use('/api/returns', returnRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/cash-registers', cashRegisterRoutes);
 app.use('/api/held-bills', heldBillRoutes);
-app.use('/api/brands', brandRoutes);
 app.use('/api/brands', brandRoutes);
 app.use('/api/units', unitRoutes);
 

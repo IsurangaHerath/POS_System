@@ -15,7 +15,7 @@ class PurchaseOrder {
      * @param {Object} poData - Purchase order data
      * @returns {Promise<number>} Inserted PO ID
      */
-    static async create(poData) {
+    static async create(poData, tx = null) {
         const {
             po_number,
             supplier_id,
@@ -37,7 +37,7 @@ class PurchaseOrder {
         const result = await db.query(sql, [
             po_number, supplier_id, user_id, subtotal,
             total_amount, expected_date, notes
-        ]);
+        ], tx);
 
         return result.insertId;
     }
@@ -48,7 +48,7 @@ class PurchaseOrder {
      * @param {Object} itemData - Item data
      * @returns {Promise<number>} Inserted item ID
      */
-    static async createItem(poId, itemData) {
+    static async createItem(poId, itemData, tx = null) {
         const {
             product_id,
             unit_cost,
@@ -68,7 +68,7 @@ class PurchaseOrder {
         const result = await db.query(sql, [
             poId, product_id, unit_cost,
             quantity_ordered, quantity_received, subtotal
-        ]);
+        ], tx);
 
         return result.insertId;
     }
@@ -78,7 +78,7 @@ class PurchaseOrder {
      * @param {number} id - PO ID
      * @returns {Promise<Object|null>} PO object or null
      */
-    static async findById(id) {
+    static async findById(id, tx = null) {
         const sql = `
       SELECT po.*, s.name as supplier_name, u.full_name as user_name
       FROM purchase_orders po
@@ -87,7 +87,7 @@ class PurchaseOrder {
       WHERE po.id = ?
     `;
 
-        return db.getOne(sql, [id]);
+        return db.getOne(sql, [id], tx);
     }
 
     /**
@@ -186,13 +186,13 @@ class PurchaseOrder {
      * @param {Date} receivedDate - Received date
      * @returns {Promise<boolean>} Update success
      */
-    static async updateStatus(id, status, receivedDate = null) {
+    static async updateStatus(id, status, receivedDate = null, tx = null) {
         const sql = `
       UPDATE purchase_orders 
       SET status = ?, received_date = ?
       WHERE id = ?
     `;
-        const result = await db.query(sql, [status, receivedDate, id]);
+        const result = await db.query(sql, [status, receivedDate, id], tx);
 
         return result.affectedRows > 0;
     }
@@ -203,13 +203,13 @@ class PurchaseOrder {
      * @param {number} productId - Product ID
      * @returns {Promise<Object|null>} PO item or null
      */
-    static async findItem(poId, productId) {
+    static async findItem(poId, productId, tx = null) {
         const sql = `
       SELECT * FROM purchase_order_items
       WHERE purchase_order_id = ? AND product_id = ?
     `;
 
-        return db.getOne(sql, [poId, productId]);
+        return db.getOne(sql, [poId, productId], tx);
     }
 
     /**
@@ -217,9 +217,9 @@ class PurchaseOrder {
      * @param {number} poId - PO ID
      * @returns {Promise<Array>} Array of items
      */
-    static async getItems(poId) {
+    static async getItems(poId, tx = null) {
         const sql = 'SELECT * FROM purchase_order_items WHERE purchase_order_id = ?';
-        return db.getMany(sql, [poId]);
+        return db.getMany(sql, [poId], tx);
     }
 
     /**
@@ -229,13 +229,13 @@ class PurchaseOrder {
      * @param {number} quantityReceived - Received quantity
      * @returns {Promise<boolean>} Update success
      */
-    static async updateItemReceived(poId, productId, quantityReceived) {
+    static async updateItemReceived(poId, productId, quantityReceived, tx = null) {
         const sql = `
       UPDATE purchase_order_items
       SET quantity_received = ?
       WHERE purchase_order_id = ? AND product_id = ?
     `;
-        const result = await db.query(sql, [quantityReceived, poId, productId]);
+        const result = await db.query(sql, [quantityReceived, poId, productId], tx);
 
         return result.affectedRows > 0;
     }
@@ -266,15 +266,15 @@ class PurchaseOrder {
      * @param {number} poId - PO ID
      * @param {number} userId - User ID
      */
-    static async logInventoryChange(productId, quantityChange, poId, userId) {
-        // Get current quantity
+    static async logInventoryChange(productId, quantityChange, poId, userId, tx = null) {
+        // NOTE: called AFTER Product.updateStock, so current quantity is the "after" value.
         const productSql = 'SELECT quantity_in_stock FROM products WHERE id = ?';
-        const product = await db.getOne(productSql, [productId]);
+        const product = await db.getOne(productSql, [productId], tx);
 
         if (!product) return;
 
-        const quantityBefore = product.quantity_in_stock;
-        const quantityAfter = quantityBefore + quantityChange;
+        const quantityAfter = product.quantity_in_stock;
+        const quantityBefore = quantityAfter - quantityChange;
 
         const sql = `
       INSERT INTO inventory_logs (
@@ -295,7 +295,7 @@ class PurchaseOrder {
             'purchase_order',
             userId,
             'Purchase order receipt'
-        ]);
+        ], tx);
     }
 
     /**

@@ -9,6 +9,7 @@ const router = express.Router();
 
 const dashboardController = require('../controllers/dashboardController');
 const { authenticate } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validate');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 /**

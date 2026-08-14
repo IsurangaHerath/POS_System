@@ -10,6 +10,7 @@ const router = express.Router();
 
 const settingsController = require('../controllers/settingsController');
 const { authenticate } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validate');
 const { adminOnly } = require('../middleware/rbac');
 const { asyncHandler } = require('../middleware/errorHandler');
 
@@ -47,6 +48,7 @@ router.put('/currency',
             .notEmpty()
             .withMessage('Currency code is required')
     ],
+    validateRequest,
     asyncHandler(settingsController.updateCurrencySettings)
 );
 

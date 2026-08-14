@@ -9,6 +9,7 @@ const router = express.Router();
 
 const reportController = require('../controllers/reportController');
 const { authenticate } = require('../middleware/auth');
+const { validateRequest } = require('../middleware/validate');
 const { managerOrAdmin } = require('../middleware/rbac');
 const { asyncHandler } = require('../middleware/errorHandler');
 

@@ -134,6 +134,7 @@ const createSale = async (request, response, next) => {
 
         let subtotal = 0;
         let totalTax = 0;
+        let itemDiscountTotal = 0;
         const saleItemList = [];
 
         // Process each item in the sale
@@ -156,12 +157,17 @@ const createSale = async (request, response, next) => {
             // Calculate item amounts (allow client-provided price override for discounts)
             const itemPrice = Number(item.unit_price) || Number(product.selling_price);
             const itemSubtotal = itemPrice * item.quantity;
-            const itemTax = (itemSubtotal * (product.tax_rate || 0)) / 100;
-            const itemDiscount = Number(item.discount) || 0;
+            const itemDiscount = Math.max(0, Number(item.discount) || 0);
+            if (itemDiscount > itemSubtotal) {
+                throw new ValidationError(`Discount for ${product.name} cannot exceed item subtotal`);
+            }
+            const itemNet = itemSubtotal - itemDiscount;
+            const itemTax = (itemNet * (product.tax_rate || 0)) / 100;
 
             // Accumulate totals
             subtotal += itemSubtotal;
             totalTax += itemTax;
+            itemDiscountTotal += itemDiscount;
 
             // Build sale item record
             saleItemList.push({
@@ -170,20 +176,24 @@ const createSale = async (request, response, next) => {
                 product_barcode: product.barcode,
                 unit_price: itemPrice,
                 quantity: item.quantity,
-                subtotal: itemSubtotal - itemDiscount,
+                subtotal: itemNet,
                 discount: itemDiscount,
                 tax_amount: itemTax
             });
         }
 
-        // Invoice-level discount (fixed amount or percentage of subtotal)
-        let invoiceDiscount = Number(discount_amount) || 0;
+        // Invoice-level discount (fixed amount or percentage of net-of-item-discount subtotal)
+        const netSubtotal = subtotal - itemDiscountTotal;
+        let invoiceDiscount = Math.max(0, Number(discount_amount) || 0);
         if (discount_type === 'percent') {
-            invoiceDiscount = (subtotal * (Number(discount_amount) || 0)) / 100;
+            invoiceDiscount = (netSubtotal * (Number(discount_amount) || 0)) / 100;
+        }
+        if (invoiceDiscount > netSubtotal) {
+            throw new ValidationError('Invoice discount cannot exceed subtotal');
         }
 
         // Final sale total
-        const totalAmount = subtotal + totalTax - invoiceDiscount;
+        const totalAmount = netSubtotal + totalTax - invoiceDiscount;
         const roundedTotal = Math.round(totalAmount * 100) / 100;
 
         // ---- Payment reconciliation (cash / card / bank / QR / credit / mixed) ----
@@ -194,7 +204,7 @@ const createSale = async (request, response, next) => {
 
         if (payments && payments.length > 0) {
             for (const p of payments) {
-                const amt = Number(p.amount) || 0;
+                const amt = Math.max(0, Number(p.amount) || 0);
                 totalPaid += amt;
                 if (p.method === 'cash') cashPaid += amt;
                 if (p.method === 'credit') creditAmount += amt;
@@ -215,16 +225,19 @@ const createSale = async (request, response, next) => {
         const changeAmount = totalPaid > roundedTotal ? totalPaid - roundedTotal : 0;
 
         // ---- Credit / udharata handling ----
-        if (customer_id && amountDue > 0) {
-            const customer = await Customer.findById(customer_id);
+        // The credit portion of a mixed payment is also added to the customer balance,
+        // so a customer cannot bypass credit tracking by splitting payment methods.
+        const creditCharged = amountDue + creditAmount;
+        if (customer_id && creditCharged > 0) {
+            const customer = await Customer.findById(customer_id, tx);
             if (!customer) {
                 throw new NotFoundError('Customer not found');
             }
-            const newBalance = (Number(customer.balance) || 0) + amountDue;
+            const newBalance = (Number(customer.balance) || 0) + creditCharged;
             if (Number(customer.credit_limit) > 0 && newBalance > Number(customer.credit_limit)) {
                 throw new ValidationError('Credit sale exceeds customer credit limit');
             }
-            await Customer.adjustBalance(customer_id, amountDue, tx);
+            await Customer.adjustBalance(customer_id, creditCharged, tx);
         }
 
         // Generate unique invoice number
@@ -234,7 +247,7 @@ const createSale = async (request, response, next) => {
         const saleId = await Sale.create({
             invoice_number: invoiceNumber,
             user_id: userId,
-            subtotal,
+            subtotal: netSubtotal,
             tax_amount: totalTax,
             discount_amount: invoiceDiscount,
             invoice_discount_amount: invoiceDiscount,
@@ -361,6 +374,22 @@ const voidSale = async (request, response, next) => {
             );
         }
 
+        // Reverse customer credit / udharata balance for credit sales
+        const creditCharged = (Number(existingSale.amount_due) || 0) + (
+            await Sale.getCreditPaidAmount(id, tx)
+        );
+        if (existingSale.customer_id && creditCharged > 0) {
+            await Customer.adjustBalance(existingSale.customer_id, -creditCharged, tx);
+        }
+
+        // Record a refund entry in the open cash register if the sale was paid in cash
+        if (Number(existingSale.amount_paid) > 0) {
+            const openRegister = await CashRegister.findOpenByUser(request.user.id);
+            if (openRegister) {
+                await CashRegister.addEntry(openRegister.id, 'refund', existingSale.amount_paid, id, `Voided sale: ${reason}`, tx);
+            }
+        }
+
         // Commit the transaction
         await database.commitTransaction(tx);
 
@@ -428,12 +457,35 @@ const generateReceipt = async (request, response, next) => {
             throw new NotFoundError('Sale not found');
         }
 
+        // Load store settings for the receipt header/footer
+        const [settingsRows] = await database.query(
+            `SELECT setting_key, setting_value FROM settings
+             WHERE setting_key IN ('store_name','store_address','store_phone','receipt_footer')`
+        );
+        const settingsMap = {};
+        for (const row of settingsRows) {
+            settingsMap[row.setting_key] = row.setting_value;
+        }
+        sale.business_name = settingsMap.store_name || 'POS System Store';
+        sale.business_address = settingsMap.store_address || '';
+        sale.business_phone = settingsMap.store_phone || '';
+        sale.receipt_footer = settingsMap.receipt_footer || 'Thank you for your purchase!';
+
+        // Escape user-controlled values to prevent stored XSS
+        const esc = (value) => String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        const money = (value) => `Rs ${Number(value || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
         // Generate HTML receipt
         const receiptHtml = `
             <!DOCTYPE html>
             <html>
             <head>
-                <title>Receipt - ${sale.invoice_number}</title>
+                <title>Receipt - ${esc(sale.invoice_number)}</title>
                 <style>
                     body { 
                         font-family: monospace; 
@@ -450,53 +502,61 @@ const generateReceipt = async (request, response, next) => {
             </head>
             <body>
                 <div class="header">
-                    <h2>POS System Store</h2>
-                    <p>123 Main Street, City</p>
+                    <h2>${esc(sale.business_name || 'POS System Store')}</h2>
+                    <p>${esc(sale.business_address || '')}</p>
+                    <p>${esc(sale.business_phone || '')}</p>
                 </div>
                 <div class="divider"></div>
-                <p>Invoice: ${sale.invoice_number}</p>
+                <p>Invoice: ${esc(sale.invoice_number)}</p>
                 <p>Date: ${new Date(sale.sale_date).toLocaleString()}</p>
-                <p>Cashier: ${sale.cashier_name}</p>
+                <p>Cashier: ${esc(sale.cashier_name)}</p>
+                ${sale.customer_name ? `<p>Customer: ${esc(sale.customer_name)}</p>` : ''}
                 <div class="divider"></div>
                 ${sale.items.map(item => `
                     <div class="item">
-                        <span>${item.product_name} x${item.quantity}</span>
-                        <span>$${item.subtotal.toFixed(2)}</span>
+                        <span>${esc(item.product_name)} x${item.quantity}</span>
+                        <span>${money(item.subtotal)}</span>
                     </div>
                 `).join('')}
                 <div class="divider"></div>
                 <div class="item">
                     <span>Subtotal:</span>
-                    <span>$${sale.subtotal.toFixed(2)}</span>
+                    <span>${money(sale.subtotal)}</span>
                 </div>
                 <div class="item">
                     <span>Tax:</span>
-                    <span>$${sale.tax_amount.toFixed(2)}</span>
+                    <span>${money(sale.tax_amount)}</span>
                 </div>
                 ${sale.discount_amount > 0 ? `
                     <div class="item">
                         <span>Discount:</span>
-                        <span>-$${sale.discount_amount.toFixed(2)}</span>
+                        <span>-${money(sale.discount_amount)}</span>
                     </div>
                 ` : ''}
                 <div class="item total">
                     <span>Total:</span>
-                    <span>$${sale.total_amount.toFixed(2)}</span>
+                    <span>${money(sale.total_amount)}</span>
                 </div>
                 <div class="divider"></div>
                 <div class="item">
-                    <span>Paid (${sale.payment_method}):</span>
-                    <span>$${sale.amount_paid.toFixed(2)}</span>
+                    <span>Paid (${esc(sale.payment_method)}):</span>
+                    <span>${money(sale.amount_paid)}</span>
                 </div>
                 ${sale.change_amount > 0 ? `
                     <div class="item">
                         <span>Change:</span>
-                        <span>$${sale.change_amount.toFixed(2)}</span>
+                        <span>${money(sale.change_amount)}</span>
+                    </div>
+                ` : ''}
+                ${sale.amount_due > 0 ? `
+                    <div class="item">
+                        <span>Balance Due:</span>
+                        <span>${money(sale.amount_due)}</span>
                     </div>
                 ` : ''}
                 <div class="divider"></div>
                 <div class="footer">
-                    <p>Thank you for your purchase!</p>
+                    <p>${esc(sale.receipt_footer || 'Thank you for your purchase!')}</p>
                 </div>
             </body>
             </html>
