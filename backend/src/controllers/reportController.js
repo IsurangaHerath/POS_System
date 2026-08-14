@@ -137,7 +137,8 @@ const getDailySalesReport = async (req, res, next) => {
             hourly_breakdown: hourlyBreakdown,
             payment_breakdown: paymentBreakdown,
             top_products: topProducts,
-            sales: sales
+            sales: sales,
+            individual_sales: sales
         };
 
         return successResponse(res, report);
@@ -537,13 +538,15 @@ async function getWeeklyBreakdown(year, month) {
     logger.debug('[ReportController] getWeeklyBreakdown executing with:', { year, month });
     
     const sql = `
-    SELECT 
-      WEEK(sale_date) - WEEK(DATE_FORMAT(sale_date, '%Y-%m-01')) + 1 as week,
-      COUNT(*) as transactions,
-      SUM(total_amount) as sales
-    FROM sales
-    WHERE YEAR(sale_date) = ? AND MONTH(sale_date) = ? AND status = 'completed'
-    GROUP BY WEEK(sale_date)
+    SELECT week, COUNT(*) as transactions, SUM(sales) as sales
+    FROM (
+      SELECT 
+        WEEK(sale_date) - WEEK(DATE_FORMAT(sale_date, '%Y-%m-01')) + 1 as week,
+        total_amount as sales
+      FROM sales
+      WHERE YEAR(sale_date) = ? AND MONTH(sale_date) = ? AND status = 'completed'
+    ) w
+    GROUP BY week
     ORDER BY week
   `;
     logger.debug('[ReportController] getWeeklyBreakdown SQL:', sql, 'params:', [year, month]);

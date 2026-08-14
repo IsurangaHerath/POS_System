@@ -99,7 +99,7 @@ export const AuthProvider = ({ children }) => {
                     });
                     clearTimeout(timeoutId);
                     
-                    const validatedUser = response.data.data.user;
+                    const validatedUser = response.data.data.user || response.data.data;
                     setAuthToken(storedToken);
                     setCurrentUser(validatedUser);
                     setIsAuthenticated(true);
@@ -130,7 +130,7 @@ export const AuthProvider = ({ children }) => {
     const validateStoredAuth = async (token, user) => {
         try {
             const response = await api.get('/auth/me');
-            const validatedUser = response.data.data.user;
+            const validatedUser = response.data.data.user || response.data.data;
             
             setAuthToken(token);
             setCurrentUser(validatedUser);

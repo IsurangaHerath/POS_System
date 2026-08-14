@@ -279,7 +279,7 @@ const ReportsPage = () => {
 
     const formatCurrency = (amount) => {
         // Convert from USD base to current currency
-        const converted = convertPrice(amount || 0);
+        const converted = Number(convertPrice(amount || 0)) || 0;
         return `${currencySettings.currency_symbol}${converted.toFixed(2)}`;
     };
 
