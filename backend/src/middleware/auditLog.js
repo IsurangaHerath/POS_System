@@ -46,9 +46,29 @@ const auditLog = async (req, res, next) => {
                 }
 
                 // Sanitize body (remove sensitive info)
-                const sanitizedBody = { ...req.body };
-                const sensitiveFields = ['password', 'password_hash', 'oldPassword', 'newPassword', 'token'];
-                sensitiveFields.forEach(field => delete sanitizedBody[field]);
+                const sensitiveFields = [
+                    'password', 'password_hash', 'oldPassword', 'currentPassword',
+                    'newPassword', 'confirmPassword', 'token', 'accessToken',
+                    'refreshToken', 'refresh_token', 'access_token', 'authorization'
+                ];
+                const sanitize = (value) => {
+                    if (Array.isArray(value)) {
+                        return value.map(sanitize);
+                    }
+                    if (value && typeof value === 'object') {
+                        const clean = {};
+                        for (const [key, val] of Object.entries(value)) {
+                            if (sensitiveFields.includes(key)) {
+                                clean[key] = '[REDACTED]';
+                            } else {
+                                clean[key] = sanitize(val);
+                            }
+                        }
+                        return clean;
+                    }
+                    return value;
+                };
+                const sanitizedBody = sanitize(req.body);
 
                 // Create audit log entry
                 const auditEntry = {

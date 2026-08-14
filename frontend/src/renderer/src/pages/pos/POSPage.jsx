@@ -195,11 +195,25 @@ const POSPage = () => {
     // Resume a held bill
     const handleResumeBill = async (bill) => {
         const restored = (bill.cart || [])
-            .map((ci) => products.find((p) => p.id === ci.id) || ci)
+            .map((ci) => {
+                const currentProduct = products.find((p) => p.id === ci.id);
+                return {
+                    ...(currentProduct || ci),
+                    id: ci.id,
+                    name: currentProduct?.name || ci.name,
+                    price: parseFloat(currentProduct?.selling_price ?? ci.price) || 0,
+                    stock_quantity: currentProduct?.quantity_in_stock ?? ci.stock_quantity
+                };
+            })
             .filter((ci) => ci);
         if (restored.length) {
             clearCart();
-            restored.forEach((ci) => addToCart({ ...ci, quantity: 1 }));
+            restored.forEach((ci) => addToCart(ci));
+            // Preserve the original held quantity, respecting current stock
+            restored.forEach((ci) => {
+                const heldQty = Math.max(1, parseInt(ci.quantity) || 1);
+                updateCartQuantity(ci.id, heldQty, products);
+            });
         }
         if (bill.customer_id) {
             setSelectedCustomer(customers.find((c) => c.id === bill.customer_id) || null);

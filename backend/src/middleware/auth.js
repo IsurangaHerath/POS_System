@@ -16,8 +16,24 @@ const { unauthorizedResponse, errorResponse } = require('../utils/response');
 const logger = require('../utils/logger');
 
 // JWT configuration
+// In production, JWT secrets MUST be set via environment variables. Failing
+// fast here prevents deployment with publicly-known fallback signing keys.
 const JWT_SECRET = process.env.JWT_SECRET || 'your-access-secret-key';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+if (IS_PRODUCTION) {
+    if (JWT_SECRET === 'your-access-secret-key' || JWT_REFRESH_SECRET === 'your-refresh-secret-key') {
+        logger.error(
+            'Production started without JWT_SECRET / JWT_REFRESH_SECRET. ' +
+            'Configure these environment variables to secure authentication.'
+        );
+        throw new Error('JWT secrets must be configured in production');
+    }
+    if (JWT_SECRET.length < 32 || JWT_REFRESH_SECRET.length < 32) {
+        throw new Error('JWT secrets must be at least 32 characters in production');
+    }
+}
 
 /**
  * Extracts user information from JWT token and attaches to request object.

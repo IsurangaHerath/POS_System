@@ -161,7 +161,7 @@ const getMonthlySalesReport = async (req, res, next) => {
     try {
         const { year, month } = req.query;
         
-        console.log('[ReportController] Monthly Sales - Received params:', { year, month });
+        logger.debug('[ReportController] Monthly Sales - Received params:', { year, month });
         
         const now = new Date();
         
@@ -182,16 +182,16 @@ const getMonthlySalesReport = async (req, res, next) => {
             reportMonth = now.getMonth() + 1;
         }
 
-        console.log('[ReportController] Parsed year/month:', { reportYear, reportMonth });
-        console.log('[ReportController] Calling Sale.getMonthlySummary with params:', [reportYear, reportMonth]);
+        logger.debug('[ReportController] Parsed year/month:', { reportYear, reportMonth });
+        logger.debug('[ReportController] Calling Sale.getMonthlySummary with params:', [reportYear, reportMonth]);
 
         // Get current month summary
         let summary;
         try {
             summary = await Sale.getMonthlySummary(reportYear, reportMonth);
-            console.log('[ReportController] getMonthlySummary result:', summary);
+            logger.debug('[ReportController] getMonthlySummary result:', summary);
         } catch (summaryError) {
-            console.error('[ReportController] Error in getMonthlySummary:', summaryError.message, summaryError.stack);
+            logger.error('[ReportController] Error in getMonthlySummary:', summaryError.message, summaryError.stack);
             throw new Error(`Failed to get monthly summary: ${summaryError.message}`);
         }
 
@@ -200,13 +200,13 @@ const getMonthlySalesReport = async (req, res, next) => {
         let prevYear = reportMonth === 1 ? reportYear - 1 : reportYear;
         let prevMonth = reportMonth === 1 ? 12 : reportMonth - 1;
         
-        console.log('[ReportController] Calling getMonthlySummary for previous month:', { prevYear, prevMonth });
+        logger.debug('[ReportController] Calling getMonthlySummary for previous month:', { prevYear, prevMonth });
         
         try {
             prevMonthSummary = await Sale.getMonthlySummary(prevYear, prevMonth);
-            console.log('[ReportController] Previous month summary result:', prevMonthSummary);
+            logger.debug('[ReportController] Previous month summary result:', prevMonthSummary);
         } catch (prevError) {
-            console.error('[ReportController] Error in getMonthlySummary for previous month:', prevError.message);
+            logger.error('[ReportController] Error in getMonthlySummary for previous month:', prevError.message);
             prevMonthSummary = { total_sales: 0, total_transactions: 0 };
         }
 
@@ -297,7 +297,7 @@ const getMonthlySalesReport = async (req, res, next) => {
             individual_sales: individualSalesFormatted
         };
 
-        console.log('[ReportController] Sending report:', JSON.stringify(report, null, 2).substring(0, 500));
+        logger.debug('[ReportController] Sending report:', JSON.stringify(report, null, 2).substring(0, 500));
 
         return successResponse(res, report);
     } catch (error) {
@@ -319,7 +319,7 @@ const getProductPerformanceReport = async (req, res, next) => {
     try {
         const { startDate, endDate, category_id, limit = 20 } = req.query;
 
-        console.log('[ReportController] Product Performance params:', { startDate, endDate, category_id, limit });
+        logger.debug('[ReportController] Product Performance params:', { startDate, endDate, category_id, limit });
 
         // Get top products
         const products = await Sale.getTopProducts({
@@ -510,7 +510,7 @@ async function getHourlyBreakdown(date) {
  * @returns     {Promise<Array<{date, transactions, sales}>>}
  */
 async function getDailyBreakdown(year, month) {
-    console.log('[ReportController] getDailyBreakdown executing with:', { year, month });
+    logger.debug('[ReportController] getDailyBreakdown executing with:', { year, month });
     
     const sql = `
     SELECT 
@@ -534,7 +534,7 @@ async function getDailyBreakdown(year, month) {
  * @returns     {Promise<Array<{week, transactions, sales}>>}
  */
 async function getWeeklyBreakdown(year, month) {
-    console.log('[ReportController] getWeeklyBreakdown executing with:', { year, month });
+    logger.debug('[ReportController] getWeeklyBreakdown executing with:', { year, month });
     
     const sql = `
     SELECT 
@@ -546,13 +546,13 @@ async function getWeeklyBreakdown(year, month) {
     GROUP BY WEEK(sale_date)
     ORDER BY week
   `;
-    console.log('[ReportController] getWeeklyBreakdown SQL:', sql, 'params:', [year, month]);
+    logger.debug('[ReportController] getWeeklyBreakdown SQL:', sql, 'params:', [year, month]);
     try {
         const result = await db.getMany(sql, [year, month]);
-        console.log('[ReportController] getWeeklyBreakdown result:', result);
+        logger.debug('[ReportController] getWeeklyBreakdown result:', result);
         return result;
     } catch (error) {
-        console.error('[ReportController] getWeeklyBreakdown ERROR:', error.message, error.stack);
+        logger.error('[ReportController] getWeeklyBreakdown ERROR:', error.message, error.stack);
         throw new Error(`getWeeklyBreakdown failed: ${error.message}`);
     }
 }

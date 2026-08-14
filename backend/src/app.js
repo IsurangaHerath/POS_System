@@ -131,6 +131,34 @@ const getRateLimitConfig = () => {
 const apiLimiter = rateLimit(getRateLimitConfig());
 app.use('/api/', apiLimiter);
 
+// Stricter rate limit for authentication endpoints (login / register / refresh)
+// to mitigate brute-force and credential-stuffing attacks. Auth routes are
+// intentionally skipped by apiLimiter above, so they get their own limiter.
+const authLimiter = rateLimit({
+    windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes default
+    max: parseInt(process.env.AUTH_RATE_LIMIT_MAX) || (IS_PRODUCTION ? 20 : 50),
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        success: false,
+        error: {
+            code: 'RATE_LIMIT_ERROR',
+            message: 'Too many authentication attempts, please try again later.'
+        }
+    },
+    handler: (request, response) => {
+        logger.warn(`Auth rate limit exceeded for IP: ${request.ip}, Path: ${request.path}`);
+        response.status(429).json({
+            success: false,
+            error: {
+                code: 'RATE_LIMIT_ERROR',
+                message: 'Too many authentication attempts, please try again later.'
+            }
+        });
+    }
+});
+app.use('/api/auth/', authLimiter);
+
 // ============================================
 // REQUEST PARSING MIDDLEWARE
 // ============================================

@@ -152,6 +152,23 @@ class Customer {
         await db.query(sql, [delta, id], tx);
     }
 
+    /**
+     * Atomically add credit to a customer's balance, enforcing the credit
+     * limit in the same statement. Prevents concurrent sales from pushing a
+     * customer past their credit limit (TOCTOU). When the limit is 0 the
+     * limit is treated as unlimited.
+     * @returns {Promise<boolean>} true when the update succeeded (within limit)
+     */
+    static async chargeCredit(id, amount, tx = null) {
+        const sql = `
+            UPDATE customers
+            SET balance = balance + ?
+            WHERE id = ? AND (credit_limit = 0 OR balance + ? <= credit_limit)
+        `;
+        const result = await db.query(sql, [amount, id, amount], tx);
+        return result.affectedRows > 0;
+    }
+
     static async getHistory(id, options = {}) {
         const { page = 1, limit = 50 } = options;
 

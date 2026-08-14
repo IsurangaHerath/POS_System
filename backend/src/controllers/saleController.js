@@ -214,7 +214,6 @@ const createSale = async (request, response, next) => {
                 ? 'mixed'
                 : (nonCreditMethods.length === 1 ? nonCreditMethods[0].method : 'credit');
         } else if (payment_method === 'credit') {
-            creditAmount = roundedTotal;
             totalPaid = 0;
         } else {
             totalPaid = Number(amount_paid) || roundedTotal;
@@ -233,11 +232,13 @@ const createSale = async (request, response, next) => {
             if (!customer) {
                 throw new NotFoundError('Customer not found');
             }
-            const newBalance = (Number(customer.balance) || 0) + creditCharged;
-            if (Number(customer.credit_limit) > 0 && newBalance > Number(customer.credit_limit)) {
-                throw new ValidationError('Credit sale exceeds customer credit limit');
+            // Atomic check-and-update: chargeCredit only succeeds when the new
+            // balance stays within the limit, preventing concurrent sales from
+            // pushing the customer over it.
+            const charged = await Customer.chargeCredit(customer_id, creditCharged, tx);
+            if (!charged) {
+                throw new ValidationError('Credit sale would exceed customer credit limit');
             }
-            await Customer.adjustBalance(customer_id, creditCharged, tx);
         }
 
         // Generate unique invoice number
@@ -273,10 +274,11 @@ const createSale = async (request, response, next) => {
                 );
             }
         } else {
+            const paymentAmount = payment_method === 'credit' ? roundedTotal : totalPaid;
             await database.query(
                 `INSERT INTO payments (payment_type, sale_id, amount, method, user_id)
                  VALUES ('sale', ?, ?, ?, ?)`,
-                [saleId, creditAmount > 0 ? roundedTotal : totalPaid, effectiveMethod, userId],
+                [saleId, paymentAmount, effectiveMethod, userId],
                 tx
             );
         }
@@ -374,10 +376,16 @@ const voidSale = async (request, response, next) => {
             );
         }
 
-        // Reverse customer credit / udharata balance for credit sales
-        const creditCharged = (Number(existingSale.amount_due) || 0) + (
-            await Sale.getCreditPaidAmount(id, tx)
-        );
+        // Reverse customer credit / udharata balance for credit sales.
+        // Pure-credit sales (payment_method='credit' with nothing paid) record the
+        // full amount as a credit payment; amount_due already equals the charge, so
+        // adding getCreditPaidAmount would double-count. Mixed/array credit sales
+        // record amount_paid > 0, so there the credit payments are added on top.
+        const isPureCredit = existingSale.payment_method === 'credit'
+            && Number(existingSale.amount_paid) === 0;
+        const creditCharged = isPureCredit
+            ? (Number(existingSale.amount_due) || 0)
+            : (Number(existingSale.amount_due) || 0) + (await Sale.getCreditPaidAmount(id, tx));
         if (existingSale.customer_id && creditCharged > 0) {
             await Customer.adjustBalance(existingSale.customer_id, -creditCharged, tx);
         }
