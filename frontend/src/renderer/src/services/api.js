@@ -107,15 +107,16 @@ api.interceptors.response.use(
         );
 
         // Handle 401 Unauthorized - clear auth and redirect to login
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        // Skip redirect for login/register endpoints (401 there means wrong credentials, not expired session)
+        if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url.includes('/auth/login') && !originalRequest.url.includes('/auth/register')) {
             originalRequest._retry = true;
 
             // Clear authentication data from localStorage (browser environment)
             localStorage.removeItem('auth_token');
             localStorage.removeItem('auth_user');
 
-            // Redirect to login page
-            window.location.href = '/login';
+            // Redirect to login page using HashRouter-compatible path
+            window.location.hash = '#/login';
             return Promise.reject(error);
         }
 
