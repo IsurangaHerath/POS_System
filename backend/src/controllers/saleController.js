@@ -110,10 +110,11 @@ const getSaleById = async (request, response, next) => {
  * @returns     { success, data: sale } (201).
  */
 const createSale = async (request, response, next) => {
-    // Begin database transaction
-    const tx = await database.beginTransaction();
+    let tx = null;
     
     try {
+        // Begin database transaction inside try so failures are caught
+        tx = await database.beginTransaction();
         const {
             items,
             payment_method,
@@ -339,10 +340,11 @@ const createSale = async (request, response, next) => {
  * @returns     { success, data: { id, status: 'voided' } }.
  */
 const voidSale = async (request, response, next) => {
-    // Begin database transaction
-    const tx = await database.beginTransaction();
+    let tx = null;
     
     try {
+        // Begin database transaction inside try so failures are caught
+        tx = await database.beginTransaction();
         const { id } = request.params;
         const { reason } = request.body;
 

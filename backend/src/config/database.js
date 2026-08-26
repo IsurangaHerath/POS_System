@@ -32,7 +32,9 @@ const databaseConfig = {
     queueLimit: 0,
     connectTimeout: 10000,
     // Enable multiple statements for schema execution if needed
-    multipleStatements: false
+    multipleStatements: false,
+    // SSL for cloud database connections
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : undefined
 };
 
 // Create the connection pool
@@ -231,16 +233,26 @@ async function beginTransaction() {
  * Commits a transaction
  */
 async function commitTransaction(connection) {
-    await connection.commit();
-    connection.release();
+    if (!connection) return;
+    try {
+        await connection.commit();
+    } finally {
+        connection.release();
+    }
 }
 
 /**
  * Rolls back a transaction
  */
 async function rollbackTransaction(connection) {
-    await connection.rollback();
-    connection.release();
+    if (!connection) return;
+    try {
+        await connection.rollback();
+    } catch (rollbackError) {
+        logger.error('Rollback failed:', rollbackError.message);
+    } finally {
+        try { connection.release(); } catch (_) {}
+    }
 }
 
 /**

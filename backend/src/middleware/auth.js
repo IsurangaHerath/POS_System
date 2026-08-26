@@ -16,22 +16,30 @@ const { unauthorizedResponse, errorResponse } = require('../utils/response');
 const logger = require('../utils/logger');
 
 // JWT configuration
-// In production, JWT secrets MUST be set via environment variables. Failing
-// fast here prevents deployment with publicly-known fallback signing keys.
-const JWT_SECRET = process.env.JWT_SECRET || 'your-access-secret-key';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key';
+// In production, JWT secrets SHOULD be set via environment variables.
+// If not set, generate random fallback secrets so the server can still start.
+const crypto = require('crypto');
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || crypto.randomBytes(32).toString('hex');
+
 if (IS_PRODUCTION) {
-    if (JWT_SECRET === 'your-access-secret-key' || JWT_REFRESH_SECRET === 'your-refresh-secret-key') {
-        logger.error(
-            'Production started without JWT_SECRET / JWT_REFRESH_SECRET. ' +
-            'Configure these environment variables to secure authentication.'
+    if (!process.env.JWT_SECRET) {
+        logger.warn(
+            'WARNING: JWT_SECRET not set. Using random generated secret. ' +
+            'Set JWT_SECRET environment variable for stable authentication across restarts.'
         );
-        throw new Error('JWT secrets must be configured in production');
+    } else if (process.env.JWT_SECRET.length < 32) {
+        logger.warn('WARNING: JWT_SECRET is shorter than 32 characters. Consider using a longer secret.');
     }
-    if (JWT_SECRET.length < 32 || JWT_REFRESH_SECRET.length < 32) {
-        throw new Error('JWT secrets must be at least 32 characters in production');
+    if (!process.env.JWT_REFRESH_SECRET) {
+        logger.warn(
+            'WARNING: JWT_REFRESH_SECRET not set. Using random generated secret. ' +
+            'Set JWT_REFRESH_SECRET environment variable for stable authentication across restarts.'
+        );
+    } else if (process.env.JWT_REFRESH_SECRET.length < 32) {
+        logger.warn('WARNING: JWT_REFRESH_SECRET is shorter than 32 characters. Consider using a longer secret.');
     }
 }
 

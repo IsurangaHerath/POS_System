@@ -182,6 +182,41 @@ const errorHandler = (err, request, response, next) => {
         );
     }
 
+    // Handle missing table errors (schema not migrated)
+    if (err.code === 'ER_NO_SUCH_TABLE') {
+        const tableMatch = err.message.match(/Table '(.+?)\.(.+?)'/);
+        const tableName = tableMatch ? tableMatch[2] : 'unknown';
+        logger.error(`Missing table: ${tableName}. Run database migrations.`);
+        return errorResponse(
+            response,
+            'Database configuration error. Please contact administrator.',
+            ERROR_CODES.DATABASE_ERROR,
+            500
+        );
+    }
+
+    // Handle bad field/column errors
+    if (err.code === 'ER_BAD_FIELD_ERROR') {
+        logger.error('Missing column:', err.message);
+        return errorResponse(
+            response,
+            'Database configuration error. Please contact administrator.',
+            ERROR_CODES.DATABASE_ERROR,
+            500
+        );
+    }
+
+    // Handle connection errors
+    if (err.code === 'ECONNREFUSED' || err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+        logger.error('Database connection error:', err.code, err.message);
+        return errorResponse(
+            response,
+            'Service temporarily unavailable. Please try again.',
+            ERROR_CODES.DATABASE_ERROR,
+            503
+        );
+    }
+
     // Handle JWT errors
     if (err.name === 'JsonWebTokenError') {
         return errorResponse(response, 'Invalid token', ERROR_CODES.AUTHENTICATION_ERROR, 401);
@@ -198,6 +233,12 @@ const errorHandler = (err, request, response, next) => {
 
     // Hide error details in production
     if (process.env.NODE_ENV === 'production') {
+        logger.error('Unhandled production error:', {
+            message: err.message,
+            code: err.code,
+            errno: err.errno,
+            stack: err.stack
+        });
         return errorResponse(response, 'An unexpected error occurred', ERROR_CODES.INTERNAL_ERROR, 500);
     }
 
