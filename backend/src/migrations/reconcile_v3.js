@@ -25,7 +25,7 @@ async function ensureColumn(conn, table, column, ddl) {
     }
 }
 
-(async () => {
+async function reconcile() {
     const conn = await mysql.createConnection({
         host: process.env.DB_HOST || 'localhost',
         port: parseInt(process.env.DB_PORT) || 3306,
@@ -41,7 +41,14 @@ async function ensureColumn(conn, table, column, ddl) {
     await ensureColumn(conn, 'customers', 'nic', 'VARCHAR(20) NULL');
     console.log('Done.');
     await conn.end();
-})().catch((e) => {
-    console.error('Migration failed:', e.message);
-    process.exit(1);
-});
+}
+
+// Run directly from CLI
+if (require.main === module) {
+    reconcile().then(() => process.exit(0)).catch((e) => {
+        console.error('Migration failed:', e.message);
+        process.exit(1);
+    });
+}
+
+module.exports = reconcile;

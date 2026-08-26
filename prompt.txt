@@ -1,26 +1,8 @@
 api.js:29 [API] Using VITE_API_URL or default: https://pos-system-x61a.onrender.com/api
 api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/settings/currency
 api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/settings/currency
-pos-system-x61a.onrender.com/api/settings/currency:1  Failed to load resource: the server responded with a status of 500 ()
-api.js:101 [API Error] /settings/currency 500 Request failed with status code 500 Object
-(anonymous) @ api.js:101
-CurrencyContext.jsx:50 Error fetching currency settings: AxiosError: Request failed with status code 500
-    at tx (settle.js:19:12)
-    at XMLHttpRequest.x (xhr.js:59:7)
-    at Os.request (Axios.js:46:41)
-    at async dx (api.js:153:22)
-    at async CurrencyContext.jsx:42:30
-(anonymous) @ CurrencyContext.jsx:50
-pos-system-x61a.onrender.com/api/settings/currency:1  Failed to load resource: the server responded with a status of 500 ()
-api.js:101 [API Error] /settings/currency 500 Request failed with status code 500 Object
-(anonymous) @ api.js:101
-CurrencyContext.jsx:50 Error fetching currency settings: AxiosError: Request failed with status code 500
-    at tx (settle.js:19:12)
-    at XMLHttpRequest.x (xhr.js:59:7)
-    at Os.request (Axios.js:46:41)
-    at async dx (api.js:153:22)
-    at async CurrencyContext.jsx:42:30
-(anonymous) @ CurrencyContext.jsx:50
+api.js:95 [API Response] /settings/currency 200
+api.js:95 [API Response] /settings/currency 200
 AuthContext.jsx:157 [Auth] Attempting login for: admin
 api.js:68 [API Request] POST https://pos-system-x61a.onrender.com/api/auth/login
 api.js:95 [API Response] /auth/login 200
@@ -37,6 +19,14 @@ api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/l
 api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/recent-sales
 api.js:95 [API Response] /dashboard/low-stock 200
 api.js:95 [API Response] /dashboard/top-products 200
+api.js:95 [API Response] /dashboard/summary 200
+api.js:95 [API Response] /dashboard/recent-sales 200
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/summary
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/top-products
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/low-stock
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/recent-sales
+api.js:95 [API Response] /dashboard/top-products 200
+api.js:95 [API Response] /dashboard/low-stock 200
 api.js:95 [API Response] /dashboard/recent-sales 200
 api.js:95 [API Response] /dashboard/summary 200
 api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/products
@@ -44,11 +34,72 @@ api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/categories
 api.js:95 [API Response] /categories 200
 api.js:95 [API Response] /products 200
 api.js:68 [API Request] POST https://pos-system-x61a.onrender.com/api/products
-pos-system-x61a.onrender.com/api/products:1  Failed to load resource: the server responded with a status of 400 ()
-api.js:101 [API Error] /products 400 Request failed with status code 400 Object
-(anonymous) @ api.js:101
-api.js:68 [API Request] POST https://pos-system-x61a.onrender.com/api/products
-pos-system-x61a.onrender.com/api/products:1  Failed to load resource: the server responded with a status of 400 ()
-api.js:101 [API Error] /products 400 Request failed with status code 400 Object
+pos-system-x61a.onrender.com/api/products:1  Failed to load resource: the server responded with a status of 500 ()
+api.js:101 [API Error] /products 500 Request failed with status code 500 Object
 (anonymous) @ api.js:101
 products:1  Failed to load resource: the server responded with a status of 404 ()
+api.js:68 [API Request] PUT https://pos-system-x61a.onrender.com/api/products/1
+pos-system-x61a.onrender.com/api/products/1:1  Failed to load resource: the server responded with a status of 500 ()
+api.js:101 [API Error] /products/1 500 Request failed with status code 500 Object
+(anonymous) @ api.js:101
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/inventory
+api.js:95 [API Response] /inventory 200
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/reports/daily-sales
+api.js:95 [API Response] /reports/daily-sales 200
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/inventory
+api.js:95 [API Response] /inventory 200
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/users
+api.js:95 [API Response] /users 200
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/sales
+api.js:95 [API Response] /sales 200
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/reports/daily-sales
+api.js:95 [API Response] /reports/daily-sales 200
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/reports/monthly-sales
+api.js:95 [API Response] /reports/monthly-sales 200
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/reports/monthly-sales
+api.js:95 [API Response] /reports/monthly-sales 200
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/sales
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/products
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/categories
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/customers
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/held-bills
+api.js:95 [API Response] /sales 200
+api.js:95 [API Response] /categories 200
+pos-system-x61a.onrender.com/api/customers?limit=100&is_active=true:1  Failed to load resource: the server responded with a status of 500 ()
+api.js:101 [API Error] /customers 500 Request failed with status code 500 Object
+(anonymous) @ api.js:101
+POSPage.jsx:138 Failed to load support data: AxiosError: Request failed with status code 500
+    at tx (settle.js:19:12)
+    at XMLHttpRequest.x (xhr.js:59:7)
+    at Os.request (Axios.js:46:41)
+    at async Promise.all (index 0)
+    at async POSPage.jsx:131:44
+(anonymous) @ POSPage.jsx:138
+pos-system-x61a.onrender.com/api/held-bills?limit=50:1  Failed to load resource: the server responded with a status of 500 ()
+api.js:101 [API Error] /held-bills 500 Request failed with status code 500 Object
+(anonymous) @ api.js:101
+api.js:95 [API Response] /products 200
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/products
+api.js:95 [API Response] /products 200
+api.js:68 [API Request] POST https://pos-system-x61a.onrender.com/api/sales
+pos-system-x61a.onrender.com/api/sales:1  Failed to load resource: the server responded with a status of 500 ()
+api.js:101 [API Error] /sales 500 Request failed with status code 500 Object
+(anonymous) @ api.js:101
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/summary
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/top-products
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/low-stock
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/recent-sales
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/products
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/categories
+api.js:95 [API Response] /dashboard/top-products 200
+api.js:95 [API Response] /dashboard/low-stock 200
+api.js:95 [API Response] /dashboard/recent-sales 200
+api.js:95 [API Response] /categories 200
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/inventory
+api.js:95 [API Response] /products 200
+api.js:95 [API Response] /dashboard/summary 200
+api.js:95 [API Response] /inventory 200
+api.js:68 [API Request] POST https://pos-system-x61a.onrender.com/api/inventory/adjust
+pos-system-x61a.onrender.com/api/inventory/adjust:1  Failed to load resource: the server responded with a status of 500 ()
+api.js:101 [API Error] /inventory/adjust 500 Request failed with status code 500 Object
+(anonymous) @ api.js:101

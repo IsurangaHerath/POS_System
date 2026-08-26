@@ -13,6 +13,8 @@ require('dotenv').config();
 const app = require('./src/app');
 const logger = require('./src/utils/logger');
 const database = require('./src/config/database');
+const migrate = require('./src/migrations/upgrade');
+const reconcile = require('./src/migrations/reconcile_v3');
 
 // Cloud platform detection and configuration
 const PORT = process.env.PORT || 5000;
@@ -65,6 +67,16 @@ async function startServer() {
         logger.info('Connecting to database...');
         await database.testConnection();
         logger.info('Database connected successfully');
+
+        // Run database migrations (idempotent, safe to run multiple times)
+        logger.info('Running database migrations...');
+        try {
+            await migrate();
+            await reconcile();
+            logger.info('Database migrations completed');
+        } catch (migrationError) {
+            logger.error('Migration error (non-fatal):', migrationError.message);
+        }
 
         // Start HTTP server with production optimizations
         const httpServer = app.listen(PORT, () => {
