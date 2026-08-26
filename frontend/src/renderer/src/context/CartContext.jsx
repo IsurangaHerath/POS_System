@@ -26,6 +26,7 @@ export const CartProvider = ({ children }) => {
     const [cart, setCart] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const prevCartRef = useRef([]);
+    const isInitialLoadRef = useRef(true);
 
     // Load cart from localStorage on mount
     useEffect(() => {
@@ -56,6 +57,11 @@ export const CartProvider = ({ children }) => {
 
     // Show toast messages based on cart changes
     useEffect(() => {
+        if (isInitialLoadRef.current) {
+            isInitialLoadRef.current = false;
+            return;
+        }
+
         const prevCart = prevCartRef.current;
 
         // Detect removals
