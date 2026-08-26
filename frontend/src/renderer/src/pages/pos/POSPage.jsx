@@ -524,7 +524,7 @@ const POSPage = () => {
                                 className="form-input w-24 text-sm"
                             >
                                 <option value="percentage">%</option>
-                                <option value="fixed">$</option>
+                                <option value="fixed">{currencySettings.currency_symbol}</option>
                             </select>
                             <input
                                 type="number"
@@ -532,7 +532,7 @@ const POSPage = () => {
                                 onChange={(e) => setDiscount((prev) => ({ ...prev, value: parseFloat(e.target.value) || 0 }))}
                                 min="0"
                                 className="form-input flex-1 text-sm"
-                                placeholder={discount.type === 'percentage' ? 'Enter %' : 'Enter amount'}
+                                placeholder={discount.type === 'percentage' ? 'Enter %' : `Enter ${currencySettings.currency_symbol}`}
                             />
                         </div>
                     </div>
