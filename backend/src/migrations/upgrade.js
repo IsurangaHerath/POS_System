@@ -298,6 +298,11 @@ async function migrate() {
         await conn.query("INSERT INTO expense_categories (name, description) VALUES ('Utilities','Electricity, water, internet'),('Rent','Premises rental'),('Salaries','Staff wages'),('Supplies','Pantry & office supplies'),('Transport','Delivery and fuel'),('Maintenance','Repairs and upkeep'),('Other','Miscellaneous')");
         console.log('+ seeded expense categories');
     }
+    const [catCount] = await conn.query('SELECT COUNT(*) AS c FROM categories');
+    if (catCount[0].c === 0) {
+        await conn.query("INSERT INTO categories (name, description) VALUES ('Grocery & Food','Rice, flour, spices, canned goods'),('Beverages','Water, soft drinks, juice, tea, coffee'),('Dairy & Eggs','Milk, cheese, yogurt, eggs'),('Bakery & Snacks','Bread, biscuits, chips, confectionery'),('Frozen Foods','Frozen meat, vegetables, ice cream'),('Personal Care','Shampoo, soap, toothpaste, deodorant'),('Household Cleaning','Detergents, dishwash, floor cleaner'),('Stationery & Office','Pens, notebooks, printer supplies'),('Health & Medicine','OTC medicines, vitamins, supplements'),('Electronics & Accessories','Batteries, cables, small gadgets'),('Clothing & Textiles','Apparel, fabrics, accessories'),('Baby & Kids','Diapers, baby food, toys'),('Pet Supplies','Pet food, accessories'),('Hardware & Tools','Hand tools, fixtures, fasteners'),('Miscellaneous','General / uncategorised items')");
+        console.log('+ seeded default categories');
+    }
 
     console.log('\nMigration complete.');
     await conn.end();
