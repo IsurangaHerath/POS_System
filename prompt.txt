@@ -1,1 +1,31 @@
-products:1  Failed to load resource: the server responded with a status of 404 ()
+api.js:29 [API] Using VITE_API_URL or default: https://pos-system-x61a.onrender.com/api
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/settings/currency
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/settings/currency
+api.js:95 [API Response] /settings/currency 200
+api.js:95 [API Response] /settings/currency 200
+AuthContext.jsx:157 [Auth] Attempting login for: admin
+api.js:68 [API Request] POST https://pos-system-x61a.onrender.com/api/auth/login
+api.js:95 [API Response] /auth/login 200
+AuthContext.jsx:164 [Auth] Login response status: 200
+AuthContext.jsx:165 [Auth] Login response data: Object
+AuthContext.jsx:169 [Auth] responseData.tokens exists: true
+AuthContext.jsx:170 [Auth] responseData.user exists: true
+AuthContext.jsx:171 [Auth] responseData.token exists: false
+AuthContext.jsx:182 [Auth] Extracted user: Object
+AuthContext.jsx:183 [Auth] Extracted token: present
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/summary
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/top-products
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/low-stock
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/dashboard/recent-sales
+api.js:95 [API Response] /dashboard/top-products 200
+api.js:95 [API Response] /dashboard/low-stock 200
+api.js:95 [API Response] /dashboard/recent-sales 200
+api.js:95 [API Response] /dashboard/summary 200
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/products
+api.js:68 [API Request] GET https://pos-system-x61a.onrender.com/api/categories
+api.js:95 [API Response] /categories 200
+api.js:95 [API Response] /products 200
+api.js:68 [API Request] POST https://pos-system-x61a.onrender.com/api/products
+pos-system-x61a.onrender.com/api/products:1  Failed to load resource: the server responded with a status of 409 ()
+api.js:101 [API Error] /products 409 Request failed with status code 409 Object
+(anonymous) @ api.js:101

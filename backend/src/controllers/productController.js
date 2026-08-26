@@ -162,10 +162,16 @@ const createProduct = async (request, response, next) => {
             tax_rate = 0
         } = request.body;
 
-        // Check for duplicate SKU
-        const skuExists = await Product.skuExists(sku);
-        if (skuExists) {
-            throw new ConflictError('SKU already exists');
+        // Auto-generate unique SKU if the provided one already exists
+        let finalSku = sku;
+        if (await Product.skuExists(finalSku)) {
+            const prefix = sku.substring(0, 8);
+            let counter = 1;
+            finalSku = `${prefix}-${String(counter).padStart(3, '0')}`;
+            while (await Product.skuExists(finalSku)) {
+                counter++;
+                finalSku = `${prefix}-${String(counter).padStart(3, '0')}`;
+            }
         }
 
         // Check for duplicate barcode if provided
@@ -180,7 +186,7 @@ const createProduct = async (request, response, next) => {
         const productId = await Product.create({
             name,
             barcode,
-            sku,
+            sku: finalSku,
             category_id,
             brand_id,
             unit_id,
@@ -197,7 +203,7 @@ const createProduct = async (request, response, next) => {
 
         const product = await Product.findById(productId);
 
-        logger.info(`Product created: ${sku} by ${request.user.username}`);
+        logger.info(`Product created: ${finalSku} by ${request.user.username}`);
 
         return createdResponse(response, product, 'Product created successfully');
     } catch (error) {
