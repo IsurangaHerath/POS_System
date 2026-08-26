@@ -5,7 +5,7 @@
  * with localStorage persistence
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { useToast } from './ToastContext';
 
 const CartContext = createContext(null);
@@ -25,6 +25,7 @@ export const CartProvider = ({ children }) => {
     const { success, error, warning } = useToast();
     const [cart, setCart] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const prevCartRef = useRef([]);
 
     // Load cart from localStorage on mount
     useEffect(() => {
@@ -33,6 +34,7 @@ export const CartProvider = ({ children }) => {
             if (savedCart) {
                 const parsedCart = JSON.parse(savedCart);
                 setCart(parsedCart);
+                prevCartRef.current = parsedCart;
             }
         } catch (err) {
             console.error('Failed to load cart from localStorage:', err);
@@ -52,19 +54,40 @@ export const CartProvider = ({ children }) => {
         }
     }, [cart, isLoading]);
 
+    // Show toast messages based on cart changes
+    useEffect(() => {
+        const prevCart = prevCartRef.current;
+
+        // Detect removals
+        prevCart.forEach((prevItem) => {
+            const nextItem = cart.find((i) => i.id === prevItem.id);
+            if (!nextItem) {
+                warning(`${prevItem.name} removed from cart`);
+            }
+        });
+
+        // Detect additions and quantity updates
+        cart.forEach((nextItem) => {
+            const prevItem = prevCart.find((i) => i.id === nextItem.id);
+            if (!prevItem) {
+                success(`${nextItem.name} added to cart`);
+            } else if (nextItem.quantity > prevItem.quantity) {
+                success(`${nextItem.name} quantity updated in cart`);
+            }
+        });
+
+        prevCartRef.current = cart;
+    }, [cart, success, warning]);
+
     // Add item to cart
     const addToCart = useCallback((product) => {
         setCart((prevCart) => {
             const existingItem = prevCart.find((item) => item.id === product.id);
 
             if (existingItem) {
-                // Check stock
                 if (existingItem.quantity >= product.stock_quantity) {
-                    error(`Cannot add more ${product.name}. Stock limit reached.`);
                     return prevCart;
                 }
-                
-                success(`${product.name} quantity updated in cart`);
                 return prevCart.map((item) =>
                     item.id === product.id
                         ? { ...item, quantity: item.quantity + 1 }
@@ -72,16 +95,13 @@ export const CartProvider = ({ children }) => {
                 );
             }
 
-            // Check if product is in stock
             if (product.stock_quantity < 1) {
-                error(`${product.name} is out of stock`);
                 return prevCart;
             }
 
-            success(`${product.name} added to cart`);
             return [...prevCart, { ...product, quantity: 1, price: parseFloat(product.price) || 0 }];
         });
-    }, [success, error]);
+    }, []);
 
     // Update cart item quantity
     const updateCartQuantity = useCallback((productId, quantity, products = []) => {
@@ -105,20 +125,13 @@ export const CartProvider = ({ children }) => {
 
     // Remove item from cart
     const removeFromCart = useCallback((productId) => {
-        setCart((prevCart) => {
-            const item = prevCart.find((i) => i.id === productId);
-            if (item) {
-                warning(`${item.name} removed from cart`);
-            }
-            return prevCart.filter((item) => item.id !== productId);
-        });
-    }, [warning]);
+        setCart((prevCart) => prevCart.filter((item) => item.id !== productId));
+    }, []);
 
     // Clear entire cart
     const clearCart = useCallback(() => {
         setCart([]);
-        success('Cart cleared');
-    }, [success]);
+    }, []);
 
     // Get cart item count
     const getCartItemCount = useCallback(() => {
