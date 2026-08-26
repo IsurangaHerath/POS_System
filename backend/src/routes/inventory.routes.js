@@ -53,7 +53,7 @@ router.post('/adjust',
             .isInt({ min: 1 })
             .withMessage('Quantity must be at least 1'),
         body('notes')
-            .optional()
+            .optional({ nullable: true })
             .trim()
     ],
     validateRequest,

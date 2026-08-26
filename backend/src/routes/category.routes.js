@@ -47,7 +47,7 @@ router.post('/',
             .notEmpty()
             .withMessage('Category name is required'),
         body('parent_id')
-            .optional()
+            .optional({ nullable: true })
             .isInt()
             .withMessage('Parent ID must be an integer')
     ],

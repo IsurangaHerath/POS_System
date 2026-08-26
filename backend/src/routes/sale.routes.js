@@ -55,19 +55,19 @@ router.post('/',
             .isIn(['cash', 'card', 'bank_transfer', 'qr', 'credit', 'mixed'])
             .withMessage('Invalid payment method'),
         body('amount_paid')
-            .optional()
+            .optional({ nullable: true })
             .isFloat({ min: 0 })
             .withMessage('Amount paid must be a positive number'),
         body('discount_type')
-            .optional()
+            .optional({ nullable: true })
             .isIn(['fixed', 'percent'])
             .withMessage('Invalid discount type'),
         body('customer_id')
-            .optional()
+            .optional({ nullable: true })
             .isInt()
             .withMessage('Invalid customer'),
         body('payments')
-            .optional()
+            .optional({ nullable: true })
             .isArray()
             .withMessage('Payments must be an array')
     ],

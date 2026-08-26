@@ -105,8 +105,8 @@ const updateSetting = async (req, res, next) => {
  */
 const getCurrencySettings = async (req, res, next) => {
     try {
-        const sql = 'SELECT * FROM settings WHERE setting_key IN ("currency_code", "currency_symbol")';
-        const settings = await db.getMany(sql);
+        const sql = 'SELECT * FROM settings WHERE setting_key IN (?, ?)';
+        const settings = await db.getMany(sql, ['currency_code', 'currency_symbol']);
 
         // Convert array to object
         const currencySettings = {};

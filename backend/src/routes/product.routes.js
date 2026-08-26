@@ -75,15 +75,15 @@ router.post('/',
             .isFloat({ min: 0 })
             .withMessage('Selling price must be a positive number'),
         body('cost_price')
-            .optional()
+            .optional({ nullable: true })
             .isFloat({ min: 0 })
             .withMessage('Cost price must be a positive number'),
         body('quantity_in_stock')
-            .optional()
+            .optional({ nullable: true })
             .isInt({ min: 0 })
             .withMessage('Quantity must be a non-negative integer'),
         body('category_id')
-            .optional()
+            .optional({ nullable: true })
             .isInt()
             .withMessage('Category ID must be an integer')
     ],
