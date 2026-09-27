@@ -3,6 +3,7 @@ const User = require('../models/User');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../middleware/auth');
 const { successResponse, errorResponse, unauthorizedResponse, createdResponse } = require('../utils/response');
 const { AuthenticationError, ValidationError, NotFoundError, ConflictError, AuthorizationError } = require('../middleware/errorHandler');
+const database = require('../config/database');
 const logger = require('../utils/logger');
 
 const SALT_ROUNDS = 12;
@@ -171,6 +172,11 @@ const login = async (req, res, next) => {
 const logout = async (req, res, next) => {
     try {
         if (req.user) {
+            // Bumping token_version revokes every outstanding refresh token.
+            await database.query(
+                'UPDATE users SET token_version = token_version + 1 WHERE id = ?',
+                [req.user.id]
+            );
             logger.info(`User logged out: ${req.user.username}`);
         }
 
@@ -207,6 +213,11 @@ const refresh = async (req, res, next) => {
 
         if (!user || !user.is_active) {
             throw new AuthenticationError('User not found or inactive');
+        }
+
+        // Reject refresh tokens issued before the last logout/password change.
+        if ((decoded.token_version || 0) !== (user.token_version || 0)) {
+            throw new AuthenticationError('Session was revoked. Please log in again.');
         }
 
         const newAccessToken = generateAccessToken(user);

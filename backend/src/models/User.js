@@ -24,7 +24,7 @@ class User {
     static async findById(id) {
         const sql = `
       SELECT id, username, email, full_name, role, phone, is_active, 
-             last_login, created_at, updated_at
+             last_login, token_version, created_at, updated_at
       FROM users
       WHERE id = ?
     `;
@@ -57,7 +57,7 @@ class User {
     static async findByUsernameOrEmail(identifier) {
         const sql = `
       SELECT id, username, email, password_hash, full_name, role, phone, 
-             is_active, last_login, created_at, updated_at
+             is_active, last_login, token_version, created_at, updated_at
       FROM users
       WHERE username = ? OR email = ?
     `;

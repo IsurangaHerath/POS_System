@@ -149,7 +149,8 @@ const generateAccessToken = (user) => {
 const generateRefreshToken = (user) => {
     const tokenPayload = {
         id: user.id,
-        type: 'refresh'
+        type: 'refresh',
+        token_version: user.token_version || 0
     };
 
     return jwt.sign(tokenPayload, JWT_REFRESH_SECRET, {

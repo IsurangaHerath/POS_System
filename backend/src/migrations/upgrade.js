@@ -287,6 +287,10 @@ async function migrate() {
         NOT NULL DEFAULT 'cashier'`);
     console.log('= users.role enum expanded');
 
+    // ============ SESSION REVOCATION ============
+    // token_version is bumped on logout to invalidate all outstanding refresh tokens.
+    await ensureColumn(conn, 'users', 'token_version', 'INT NOT NULL DEFAULT 0');
+
     // ============ SEED DEFAULT LOOKUPS ============
     const [unitCount] = await conn.query('SELECT COUNT(*) AS c FROM units');
     if (unitCount[0].c === 0) {
