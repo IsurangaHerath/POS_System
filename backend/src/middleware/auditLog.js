@@ -45,11 +45,15 @@ const auditLog = async (req, res, next) => {
                     entityId = responseBody.data.id;
                 }
 
-                // Sanitize body (remove sensitive info)
+                // Sanitize body (remove sensitive info).
+                // Keep this list updated whenever a new sensitive field is introduced
+                // (pin, api_key, secret, ...). Prefer structured logging elsewhere and
+                // never spread req.body into a log call.
                 const sensitiveFields = [
                     'password', 'password_hash', 'oldPassword', 'currentPassword',
                     'newPassword', 'confirmPassword', 'token', 'accessToken',
-                    'refreshToken', 'refresh_token', 'access_token', 'authorization'
+                    'refreshToken', 'refresh_token', 'access_token', 'authorization',
+                    'pin', 'api_key', 'secret', 'jwt_secret', 'session_secret'
                 ];
                 const sanitize = (value) => {
                     if (Array.isArray(value)) {

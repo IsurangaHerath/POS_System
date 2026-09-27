@@ -142,9 +142,11 @@ async function executeQuery(sqlQuery, queryParams = [], connection = null) {
             rows: rows
         };
     } catch (error) {
+        // Never log parameter values for statements that carry credentials/secrets.
+        const touchesSecrets = /password|token_version|secret|api_key/i.test(sqlQuery);
         logger.error('Query error:', {
             sql: sqlQuery.substring(0, 200),
-            params: JSON.stringify(queryParams).substring(0, 200),
+            params: touchesSecrets ? '[REDACTED]' : JSON.stringify(queryParams).substring(0, 200),
             error: error.message
         });
         throw error;
