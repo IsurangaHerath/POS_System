@@ -2,10 +2,14 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../middleware/auth');
 const { successResponse, errorResponse, unauthorizedResponse, createdResponse } = require('../utils/response');
-const { AuthenticationError, ValidationError, NotFoundError, ConflictError } = require('../middleware/errorHandler');
+const { AuthenticationError, ValidationError, NotFoundError, ConflictError, AuthorizationError } = require('../middleware/errorHandler');
 const logger = require('../utils/logger');
 
 const SALT_ROUNDS = 12;
+
+// Self-registration is disabled unless ALLOW_SELF_REGISTRATION=true is set in .env
+const ALLOW_SELF_REGISTRATION =
+    String(process.env.ALLOW_SELF_REGISTRATION || 'false').toLowerCase() === 'true';
 
 /**
  * @description Registers a new self-service account; password is bcrypt-hashed before insert.
@@ -20,6 +24,12 @@ const SALT_ROUNDS = 12;
 const register = async (req, res, next) => {
     try {
         const { username, email, password, full_name, role = 'cashier', phone } = req.body;
+
+        if (!ALLOW_SELF_REGISTRATION) {
+            throw new AuthorizationError(
+                'Self-registration is disabled. Ask an administrator to create your account.'
+            );
+        }
 
         // Check if username already exists
         const usernameExists = await User.usernameExists(username);
