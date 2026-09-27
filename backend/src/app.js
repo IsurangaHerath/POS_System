@@ -245,8 +245,11 @@ app.get('/api/health', (request, response) => {
     });
 });
 
-// API documentation endpoint
+// API documentation endpoint (hidden in production - no free reconnaissance)
 app.get('/api/docs', (request, response) => {
+    if (IS_PRODUCTION) {
+        return response.status(404).json({ success: false });
+    }
     response.json({
         success: true,
         message: 'POS System API',
