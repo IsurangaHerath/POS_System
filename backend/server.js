@@ -33,6 +33,11 @@ if (IS_PRODUCTION) {
     }
 }
 
+// Development mode leaks stack traces/SQL in error responses - never against a public URL.
+if (!IS_PRODUCTION && process.env.APP_URL && !process.env.APP_URL.includes('localhost')) {
+    logger.warn('WARNING: running non-production code against a public APP_URL');
+}
+
 // Cloud platform awareness - detect common cloud environments
 const CLOUD_PLATFORM = process.env.CLOUD_PLATFORM || 
     (process.env.AWS_REGION ? 'aws' : 
