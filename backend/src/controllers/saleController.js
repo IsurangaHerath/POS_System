@@ -268,7 +268,7 @@ const createSale = async (request, response, next) => {
             discount_type,
             rounded_total: roundedTotal,
             amount_due: amountDue,
-            total_amount: totalAmount,
+            total_amount: roundedTotal,
             payment_method: effectiveMethod,
             amount_paid: totalPaid,
             change_amount: changeAmount,
