@@ -236,12 +236,12 @@ app.set('validate', validateRequest);
 // ============================================
 
 // Health check endpoint
+// NOTE: no environment/mode field - it tells attackers how you run.
 app.get('/api/health', (request, response) => {
     response.json({
         success: true,
         message: 'Server is running',
-        timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development'
+        timestamp: new Date().toISOString()
     });
 });
 
