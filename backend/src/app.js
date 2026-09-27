@@ -168,8 +168,8 @@ app.use('/api/auth/', authLimiter);
 // REQUEST PARSING MIDDLEWARE
 // ============================================
 
-// Parse JSON bodies with configurable limit (default 10MB for cloud)
-const jsonLimit = process.env.JSON_BODY_LIMIT || '10mb';
+// Parse JSON bodies with configurable limit (default 1MB - memory exhaustion guard)
+const jsonLimit = process.env.JSON_BODY_LIMIT || '1mb';
 app.use(express.json({ limit: jsonLimit }));
 
 // Parse URL-encoded bodies with extended parsing
