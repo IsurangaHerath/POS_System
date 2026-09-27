@@ -43,6 +43,11 @@ const unitRoutes = require('./routes/unit.routes');
 // Initialize Express application
 const app = express();
 
+// Trust exactly one reverse proxy (nginx / load balancer / platform router).
+// This makes req.ip and the rate limiter use the REAL client IP from X-Forwarded-For.
+// Never use app.set('trust proxy', true) - that would let anyone spoof their IP.
+app.set('trust proxy', 1);
+
 // Environment detection
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
