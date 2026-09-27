@@ -1,4 +1,8 @@
 prompt.txt
+
+# Security guide documents (local only)
+*.docx
+
 # Dependencies
 node_modules/
 frontend/node_modules/
