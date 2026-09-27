@@ -12,6 +12,7 @@ const categoryController = require('../controllers/categoryController');
 const { authenticate } = require('../middleware/auth');
 const { managerOrAdmin, adminOnly } = require('../middleware/rbac');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { validateRequest } = require('../middleware/validate');
 
 /**
  * @route   GET /api/categories
@@ -51,6 +52,7 @@ router.post('/',
             .isInt()
             .withMessage('Parent ID must be an integer')
     ],
+    validateRequest,
     asyncHandler(categoryController.createCategory)
 );
 

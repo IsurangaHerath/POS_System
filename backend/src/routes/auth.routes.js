@@ -6,6 +6,7 @@ const authController = require('../controllers/authController');
 const { authenticate } = require('../middleware/auth');
 const { adminOnly } = require('../middleware/rbac');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { validateRequest } = require('../middleware/validate');
 
 /**
  * @route   POST /api/auth/register
@@ -37,6 +38,7 @@ router.post('/register',
             .optional()
             .trim()
     ],
+    validateRequest,
     asyncHandler(authController.register)
 );
 
@@ -50,6 +52,7 @@ router.post('/login',
             .notEmpty()
             .withMessage('Password is required')
     ],
+    validateRequest,
     asyncHandler(authController.login)
 );
 
@@ -64,6 +67,7 @@ router.post('/refresh',
             .notEmpty()
             .withMessage('Refresh token is required')
     ],
+    validateRequest,
     asyncHandler(authController.refresh)
 );
 
@@ -85,6 +89,7 @@ router.put('/password',
             .custom((value, { req }) => value === req.body.newPassword)
             .withMessage('Passwords do not match')
     ],
+    validateRequest,
     asyncHandler(authController.changePassword)
 );
 
@@ -96,6 +101,7 @@ router.post('/reset-password/:userId',
             .isLength({ min: 8 })
             .withMessage('New password must be at least 8 characters long')
     ],
+    validateRequest,
     asyncHandler(authController.resetPassword)
 );
 

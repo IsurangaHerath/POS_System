@@ -31,6 +31,11 @@ const register = async (req, res, next) => {
             );
         }
 
+        // Defense in depth: never rely on route validators alone.
+        if (typeof password !== 'string' || password.length < 8) {
+            throw new ValidationError('Password must be at least 8 characters long');
+        }
+
         // Check if username already exists
         const usernameExists = await User.usernameExists(username);
         if (usernameExists) {
