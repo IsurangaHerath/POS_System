@@ -116,7 +116,8 @@ const login = async (req, res, next) => {
 
         if (!user.is_active) {
             logger.warn(`[AUTH] Login attempt on inactive account: ${safeUsername}`);
-            throw new AuthenticationError('Account is deactivated. Please contact administrator.');
+            // Same message as a bad password so attackers cannot enumerate accounts.
+            throw new AuthenticationError('Invalid username or password');
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password_hash);
