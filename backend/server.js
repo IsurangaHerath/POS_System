@@ -38,6 +38,12 @@ if (!IS_PRODUCTION && process.env.APP_URL && !process.env.APP_URL.includes('loca
     logger.warn('WARNING: running non-production code against a public APP_URL');
 }
 
+// Production must never fall back to a wildcard CORS origin.
+if (IS_PRODUCTION && (!process.env.ALLOWED_ORIGINS || process.env.ALLOWED_ORIGINS.includes('*'))) {
+    logger.error('FATAL: ALLOWED_ORIGINS must list your real frontend origin(s).');
+    process.exit(1);
+}
+
 // Cloud platform awareness - detect common cloud environments
 const CLOUD_PLATFORM = process.env.CLOUD_PLATFORM || 
     (process.env.AWS_REGION ? 'aws' : 
