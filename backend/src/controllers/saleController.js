@@ -22,8 +22,11 @@ const {
 const { 
     NotFoundError, 
     ValidationError, 
-    ConflictError 
+    ConflictError,
+    AuthorizationError
 } = require('../middleware/errorHandler');
+const { hasPermission } = require('../middleware/rbac');
+const { PERMISSIONS } = require('../utils/constants');
 const logger = require('../utils/logger');
 const database = require('../config/database');
 
@@ -155,13 +158,17 @@ const createSale = async (request, response, next) => {
                 );
             }
 
-            // Calculate item amounts (allow client-provided price override for discounts)
-            const itemPrice = Number(item.unit_price) || Number(product.selling_price);
+            // SECURITY FIX: the price always comes from the database, never from the request body.
+            const itemPrice = Number(product.selling_price);
             const itemSubtotal = itemPrice * item.quantity;
-            const itemDiscount = Math.max(0, Number(item.discount) || 0);
-            if (itemDiscount > itemSubtotal) {
+            const requestedDiscount = Math.max(0, Number(item.discount) || 0);
+            if (requestedDiscount > 0 && !hasPermission(request.user.role, PERMISSIONS.DISCOUNT_OVERRIDE)) {
+                throw new AuthorizationError('Your role is not allowed to give item discounts');
+            }
+            if (requestedDiscount > itemSubtotal) {
                 throw new ValidationError(`Discount for ${product.name} cannot exceed item subtotal`);
             }
+            const itemDiscount = requestedDiscount;
             const itemNet = itemSubtotal - itemDiscount;
             const itemTax = (itemNet * (product.tax_rate || 0)) / 100;
 
@@ -185,9 +192,14 @@ const createSale = async (request, response, next) => {
 
         // Invoice-level discount (fixed amount or percentage of net-of-item-discount subtotal)
         const netSubtotal = subtotal - itemDiscountTotal;
-        let invoiceDiscount = Math.max(0, Number(discount_amount) || 0);
+        // SECURITY FIX: only roles with DISCOUNT_OVERRIDE may reduce the invoice total.
+        const requestedInvoiceDiscount = Math.max(0, Number(discount_amount) || 0);
+        if (requestedInvoiceDiscount > 0 && !hasPermission(request.user.role, PERMISSIONS.DISCOUNT_OVERRIDE)) {
+            throw new AuthorizationError('Your role is not allowed to give invoice discounts');
+        }
+        let invoiceDiscount = requestedInvoiceDiscount;
         if (discount_type === 'percent') {
-            invoiceDiscount = (netSubtotal * (Number(discount_amount) || 0)) / 100;
+            invoiceDiscount = (netSubtotal * requestedInvoiceDiscount) / 100;
         }
         if (invoiceDiscount > netSubtotal) {
             throw new ValidationError('Invoice discount cannot exceed subtotal');
