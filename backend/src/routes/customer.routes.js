@@ -37,7 +37,11 @@ router.get('/:id/statement', authenticate, asyncHandler(customerController.getSt
  * @route   POST /api/customers/:id/payments
  * @access  Private (requires customer credit management)
  */
-router.post('/:id/payments', authenticate, asyncHandler(customerController.recordPayment));
+router.post('/:id/payments',
+    authenticate,
+    requirePermission(PERMISSIONS.MANAGE_CUSTOMER_CREDIT),
+    asyncHandler(customerController.recordPayment)
+);
 
 /**
  * @route   POST /api/customers
