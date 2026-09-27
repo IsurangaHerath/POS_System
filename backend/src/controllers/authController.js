@@ -102,34 +102,27 @@ const register = async (req, res, next) => {
 const login = async (req, res, next) => {
     try {
         const { username, password } = req.body;
-        
-        logger.info(`[AUTH] Login attempt for username: ${username}`);
-        logger.info(`[AUTH] Request body: ${JSON.stringify({ ...req.body, password: '[HIDDEN]' })}`);
+
+        // Sanitize username before logging (log forging: strip CR/LF)
+        const safeUsername = String(username).replace(/[\r\n]/g, '_');
 
         // Find user by username or email
         const user = await User.findByUsernameOrEmail(username);
-        
-        logger.info(`[AUTH] User lookup result: ${user ? 'User found' : 'User NOT found'}`);
-        if (user) {
-            logger.info(`[AUTH] Found user details: id=${user.id}, username=${user.username}, is_active=${user.is_active}`);
-        }
 
         if (!user) {
-            logger.warn(`Login failed - invalid username: ${username}`);
+            logger.warn(`Login failed for username: ${safeUsername}`);
             throw new AuthenticationError('Invalid username or password');
         }
 
         if (!user.is_active) {
-            logger.warn(`[AUTH] Login attempt on inactive account: ${username}`);
+            logger.warn(`[AUTH] Login attempt on inactive account: ${safeUsername}`);
             throw new AuthenticationError('Account is deactivated. Please contact administrator.');
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-        
-        logger.info(`[AUTH] Password verification result: ${isPasswordValid ? 'SUCCESS' : 'FAILED'}`);
 
         if (!isPasswordValid) {
-            logger.warn(`Wrong password for user: ${username}`);
+            logger.warn(`Login failed for username: ${safeUsername}`);
             throw new AuthenticationError('Invalid username or password');
         }
 
@@ -138,7 +131,7 @@ const login = async (req, res, next) => {
 
         await User.updateLastLogin(user.id);
 
-        logger.info(`User logged in: ${username}`);
+        logger.info(`Login successful: ${user.username}`);
 
         return successResponse(res, {
             user: {
